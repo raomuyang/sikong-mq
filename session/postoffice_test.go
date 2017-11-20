@@ -51,9 +51,8 @@ func TestHandleStream(t *testing.T) {
 }
 
 func BenchmarkHandleStream(b *testing.B) {
-	b.StartTimer()
-	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		testInvokeHandleStream()
+	}
 
-	messageEntity := testInvokeHandleStream()
-	fmt.Printf("%v \n", messageEntity)
 }
