@@ -17,12 +17,8 @@ type Message struct {
 	AppID   string
 	Type    string
 	Content []byte
-}
-
-type MessageStatus struct {
-	MsgId string
-	status string
-	retried int
+	Status string
+	Retried int
 }
 
 
@@ -58,9 +54,6 @@ func StopServer() {
 func storeMessage(msgChan <-chan Message)  {
 	msg := <- msgChan
 	PushMessage(msg)
-	msgStatus := MessageStatus{msg.MsgId, Wait, 0}
-	UpdateMsgStatus(msgStatus)
-
 }
 
 func receiveMessage(connect net.Conn) <-chan Message {
@@ -95,7 +88,7 @@ func readStream(connect net.Conn) (<-chan []byte) {
 func handleStream(input <-chan []byte) <-chan Message {
 	msgChan := make(chan Message, 1)
 	go func() {
-		message := Message{}
+		message := Message{Status: Wait, Retried: 0}
 		var line []byte
 		var exit = false
 		for {

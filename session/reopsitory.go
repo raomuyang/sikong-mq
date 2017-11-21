@@ -3,6 +3,7 @@ package session
 import (
 	"github.com/garyburd/redigo/redis"
 	"time"
+	"strconv"
 )
 
 var (
@@ -139,15 +140,50 @@ func FindRecipients(applicationId string) ([]*RecipientInfo, error) {
 	return list, nil
 }
 
-func PushMessage(message Message) {
-	//dbConn := Pool.Get()
-
-	//dbConn.Do()
-
+/**
+	Save message entity to redis, index by messageId
+ */
+func PushMessage(message Message) error {
+	dbConn := Pool.Get()
+	_, err := dbConn.Do("HMSET",
+		message.MsgId,
+		KAppId, message.AppID,
+		KContent, message.Content,
+		KRetried, message.Retried,
+		KStatus, message.Status)
+	if err != nil {
+		return err
+	}
+	_, err = dbConn.Do("LPUSH", KMessageQueue, message.MsgId)
+	return err
 }
 
-func UpdateMsgStatus(msgStatus MessageStatus) {
-
+/**
+	Get message info by message id
+ */
+func GetMessageInfo(msgId string) (*Message, error) {
+	dbConn := Pool.Get()
+	base, err := redis.Strings(dbConn.Do("HMGET", msgId, KAppId, KStatus, KRetried))
+	if err != nil {
+		return nil, err
+	}
+	if len(base) == 0 {
+		return nil, NoSuchMessage{MsgId: msgId}
+	}
+	retried, err := strconv.Atoi(base[2])
+	if err != nil {
+		return nil, AttrTypeError{Type: "int", Value: base[2]}
+	}
+	message := Message{MsgId: msgId, AppID: base[0], Status: base[1], Retried: retried}
+	content, err := redis.ByteSlices(dbConn.Do("HMGET", msgId, KContent))
+	if err != nil {
+		return nil, err
+	}
+	if len(content) == 0 {
+		return nil, NoSuchMessage{MsgId: msgId, Detail: "content not found."}
+	}
+	message.Content = content[0]
+	return &message, nil
 }
 
 func DeleteMessage(id string) {

@@ -9,6 +9,8 @@ const (
 	KHost  = "host"
 	KPort  = "port"
 	KStatus = "status"
+	KContent = "content"
+	KRetried = "retried"
 )
 
 /**
