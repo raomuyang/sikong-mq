@@ -4,6 +4,7 @@ import (
 	"github.com/garyburd/redigo/redis"
 	"time"
 	"strconv"
+	"fmt"
 )
 
 var (
@@ -33,7 +34,7 @@ type DBConfig struct {
 	// the timeout to a value less than the server's timeout.
 	IdleTimeout int
 
-	// If Wait is true and the pool is at the MaxActive limit, then Get() waits
+	// If Pending is true and the pool is at the MaxActive limit, then Get() waits
 	// for a connection to be returned to the pool before returning.
 	Wait bool
 
@@ -78,7 +79,7 @@ func InitDBConfig(config DBConfig) *redis.Pool {
 	Pool.TestOnBorrow = func(c redis.Conn, t time.Time) error {
 		_, err := c.Do("PING")
 		if err != nil {
-			println(err)
+			fmt.Println(err)
 		}
 		return err
 	}
@@ -141,24 +142,6 @@ func FindRecipients(applicationId string) ([]*RecipientInfo, error) {
 }
 
 /**
-	Save message entity to redis, index by messageId
- */
-func PushMessage(message Message) error {
-	dbConn := Pool.Get()
-	_, err := dbConn.Do("HMSET",
-		message.MsgId,
-		KAppId, message.AppID,
-		KContent, message.Content,
-		KRetried, message.Retried,
-		KStatus, message.Status)
-	if err != nil {
-		return err
-	}
-	_, err = dbConn.Do("LPUSH", KMessageQueue, message.MsgId)
-	return err
-}
-
-/**
 	Get message info by message id
  */
 func GetMessageInfo(msgId string) (*Message, error) {
@@ -186,10 +169,70 @@ func GetMessageInfo(msgId string) (*Message, error) {
 	return &message, nil
 }
 
-func DeleteMessage(id string) {
-
+func DeleteMessage(msgId string) error {
+	dbConn := Pool.Get()
+	_, err := dbConn.Do("DEL", msgId)
+	return err
 }
 
-func FoundMessage(id string) *Message {
-	return nil
+func UpdateMessageStatus(msgId, status string) error {
+	dbConn := Pool.Get()
+	_, err := dbConn.Do("HSET", msgId, KStatus, status)
+	return err
+}
+
+/**
+	Save message entity to redis, index by messageId
+ */
+func MessageEnqueue(message Message) error {
+	dbConn := Pool.Get()
+	result, err := redis.Strings(dbConn.Do("HMGET", message.MsgId, KStatus))
+	if len(result) > 0 {
+		return MsgAlreadyExists{MsgId:message.MsgId, Status: result[0]}
+	}
+
+	_, err = dbConn.Do("HMSET",
+		message.MsgId,
+		KAppId, message.AppID,
+		KContent, message.Content,
+		KRetried, message.Retried,
+		KStatus, message.Status)
+	if err != nil {
+		return err
+	}
+	_, err = dbConn.Do("LPUSH", KMessageQueue, message.MsgId)
+	return err
+}
+
+func MessageDequeue() (*Message, error) {
+	dbConn := Pool.Get()
+	result, err := redis.Strings(dbConn.Do("BRPOP", KMessageQueue, 30))
+	if err != nil {
+		return nil, err
+	}
+
+	if len(result) < 2 {
+		return nil, nil
+	}
+
+	msgId := result[1]
+	msg, err := GetMessageInfo(msgId)
+	if err != nil  {
+		return nil, err
+	}
+	if msg == nil {
+		return nil, NoSuchMessage{MsgId: msgId, Detail: "Message not found."}
+	}
+
+	_, err = dbConn.Do("SADD", KRetrySet, msgId)
+	if err != nil {
+		return nil, err
+	}
+
+	err = UpdateMessageStatus(msgId, Sending)
+	if err != nil {
+		return nil, err
+	}
+
+	return msg, nil
 }

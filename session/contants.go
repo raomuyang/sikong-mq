@@ -19,7 +19,7 @@ const (
 var (
 	KRecipientSet = "rec-set"
 	KMessageQueue = "msg-q"
-	KRetryQueue  = "rty-q"
+	KRetrySet  = "rty-s"
 )
 
 /**
@@ -41,10 +41,11 @@ const (
 	Message status value
  */
 const (
-	Wait   = "wait"
-	Ack    = "ack"
-	Reject = "reject"
-	Error  = "error"
+	Pending = "pending"
+	Sending = "sending"
+	Ack     = "ack"
+	Reject  = "reject"
+	Error   = "error"
 )
 
 const (

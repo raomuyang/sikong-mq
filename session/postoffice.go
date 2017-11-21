@@ -53,7 +53,7 @@ func StopServer() {
 
 func storeMessage(msgChan <-chan Message)  {
 	msg := <- msgChan
-	PushMessage(msg)
+	MessageEnqueue(msg)
 }
 
 func receiveMessage(connect net.Conn) <-chan Message {
@@ -88,7 +88,7 @@ func readStream(connect net.Conn) (<-chan []byte) {
 func handleStream(input <-chan []byte) <-chan Message {
 	msgChan := make(chan Message, 1)
 	go func() {
-		message := Message{Status: Wait, Retried: 0}
+		message := Message{Status: Pending, Retried: 0}
 		var line []byte
 		var exit = false
 		for {

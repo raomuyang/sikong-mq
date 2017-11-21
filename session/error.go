@@ -11,6 +11,15 @@ func (e StreamReadError) Error() string  {
 	return fmt.Sprintf("Stream read error, case %s: %s", e.msg, e.input)
 }
 
+type MsgAlreadyExists struct {
+	MsgId string
+	Status string
+}
+
+func (e MsgAlreadyExists) Error() string  {
+	return fmt.Sprintf("Message already exists, ID: %s, Status %s", e.MsgId, e.Status)
+}
+
 type AttrTypeError struct {
 	Type string
 	Value string
