@@ -8,27 +8,23 @@ import (
 	"bytes"
 )
 
-const (
-	AppID       = "appid"
-	MsgId       = "msgid"
-	RequestType = "type"
-	Content     = "content"
-	TopicType   = "topic"
-	QueueType   = "queue"
-	QueryType   = "query"
-	Delim       = "\r\n"
-	Separator   = "="
-)
 
 /**
 	模仿Http协议，每个请求行均以\r\n间隔
  */
 type Message struct {
-	MessageId     string
-	ApplicationID string
-	Type          string
-	Content       []byte
+	MsgId   string
+	AppID   string
+	Type    string
+	Content []byte
 }
+
+type MessageStatus struct {
+	MsgId string
+	status string
+	retried int
+}
+
 
 var stopServer bool = false
 
@@ -59,9 +55,18 @@ func StopServer() {
 	stopServer = true
 }
 
+func storeMessage(msgChan <-chan Message)  {
+	msg := <- msgChan
+	PushMessage(msg)
+	msgStatus := MessageStatus{msg.MsgId, Wait, 0}
+	UpdateMsgStatus(msgStatus)
+
+}
+
 func receiveMessage(connect net.Conn) <-chan Message {
 	return handleStream(readStream(connect))
 }
+
 
 func readStream(connect net.Conn) (<-chan []byte) {
 	input := make(chan []byte, 4)
@@ -124,9 +129,9 @@ func handleStream(input <-chan []byte) <-chan Message {
 						value := fmt.Sprintf("%s", sub[spIndex+1:])
 						switch strKey {
 						case MsgId:
-							message.MessageId = value
+							message.MsgId = value
 						case AppID:
-							message.ApplicationID = value
+							message.AppID = value
 						case RequestType:
 							message.Type = value
 						default:

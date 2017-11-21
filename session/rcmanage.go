@@ -1,8 +1,9 @@
 package session
 
 type RecipientInfo struct {
-	Name string
+	RecipientId string
+	ApplicationId string
 	Host string
 	Port string
-	ApplicationId string
+	Status string
 }
