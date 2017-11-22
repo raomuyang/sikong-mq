@@ -11,6 +11,14 @@ func (e StreamReadError) Error() string  {
 	return fmt.Sprintf("Stream read error, case %s: %s", e.msg, e.input)
 }
 
+type MessageHandleError struct {
+	Detail string
+}
+
+func (e MessageHandleError) Error() string {
+	return "Message handle error: " + e.Detail
+}
+
 type UnknownDBOperationException struct {
 	Detail string
 }

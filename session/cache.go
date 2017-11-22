@@ -298,7 +298,7 @@ func MessageDequeue() (*Message, error) {
 		return nil, UnknownDBOperationException{Detail: "Add message id to set: " + err.Error()}
 	}
 
-	err = UpdateMessageStatus(msgId, Sending)
+	err = UpdateMessageStatus(msgId, MSending)
 	if err != nil {
 		return nil, err
 	}

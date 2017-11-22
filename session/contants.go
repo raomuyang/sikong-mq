@@ -28,26 +28,32 @@ const (
 	Sikong-mq Protocol:
  */
 const (
-	AppID       = "appid"
-	MsgId       = "msgid"
-	RequestType = "type"
-	Content     = "content"
-	TopicType   = "topic"
-	QueueType   = "queue"
-	QueryType   = "query"
-	Delim       = "\r\n"
-	Separator   = "="
+	PAppID        = "appid"
+	PMsgId        = "msgid"
+	PRequestType  = "type"
+	PContent      = "content"
+	Delim         = "\r\n"
+	Separator     = "="
+
+	TopicMsg = "topic"
+	QueueMsg = "queue"
+
+	MQueryMsg = "query"
+	MAckMsg = "ack"
+	MRejectMsg = "reject"
+
+	RegisterMsg = "register"
 )
 
 /**
 	Message status value
  */
 const (
-	Pending = "pending"
-	Sending = "sending"
-	Ack     = "ack"
-	Reject  = "reject"
-	Error   = "error"
+	MPending = "pending"
+	MSending = "sending"
+	MAck     = "ack"
+	MReject  = "reject"
+	MError   = "error"
 )
 
 const (

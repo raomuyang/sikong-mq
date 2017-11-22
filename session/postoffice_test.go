@@ -8,18 +8,18 @@ import (
 
 const (
 	body = "content body" + Delim
-	msg = AppID + Separator + "applicationid" + Delim +
-		MsgId + Separator + "messageid" + Delim +
-		RequestType + Separator + TopicType
+	msg = PAppID + Separator + "applicationid" + Delim +
+		PMsgId + Separator + "messageid" + Delim +
+		PRequestType + Separator + TopicMsg
 )
 
 func testInvokeHandleStream() Message {
 	input := make(chan []byte, 4)
 
-	msgChan := handleStream(input)
+	msgChan := decodeMessage(input)
 
 	contentBody := []byte(body)
-	content := append([]byte(Content+Separator), contentBody...)
+	content := append([]byte(PContent+Separator), contentBody...)
 
 	buf := append([]byte(msg), []byte(Delim)...)
 	buf = append(buf, []byte(content)...)
@@ -46,7 +46,7 @@ func TestHandleStream(t *testing.T) {
 	messageEntity := testInvokeHandleStream()
 	fmt.Printf("%v \n", messageEntity)
 	if bytes.Equal([]byte(body), messageEntity.Content) {
-		t.Error("Content not equal.")
+		t.Error("PContent not equal.")
 	}
 }
 

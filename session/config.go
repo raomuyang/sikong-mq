@@ -34,7 +34,7 @@ type DBConfig struct {
 	// the timeout to a value less than the server's timeout.
 	IdleTimeout int
 
-	// If Pending is true and the pool is at the MaxActive limit, then Get() waits
+	// If MPending is true and the pool is at the MaxActive limit, then Get() waits
 	// for a connection to be returned to the pool before returning.
 	Wait bool
 
