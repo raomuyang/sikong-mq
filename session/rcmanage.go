@@ -6,4 +6,5 @@ type RecipientInfo struct {
 	Host string
 	Port string
 	Status string
+	Weight int
 }

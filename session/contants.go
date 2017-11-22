@@ -11,15 +11,17 @@ const (
 	KStatus = "status"
 	KContent = "content"
 	KRetried = "retried"
+	KWeight = "weight"
 )
 
 /**
 	queue/set name
  */
-var (
-	KRecipientSet = "rec-set"
-	KMessageQueue = "msg-q"
-	KRetrySet  = "rty-s"
+const (
+	KRecipientSet = "sk-rec-set"
+	KMessageQueue = "sk-msg-q"
+	KRetrySet  = "sk-rty-s"
+	KRecentMap = "sk-recently"
 )
 
 /**
