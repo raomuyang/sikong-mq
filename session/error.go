@@ -8,7 +8,7 @@ type StreamReadError struct {
 }
 
 func (e StreamReadError) Error() string  {
-	return fmt.Sprintf("Stream read error, case %s: %s", e.msg, e.input)
+	return fmt.Sprintf("stream read error, case %s: %s", e.msg, e.input)
 }
 
 type MessageHandleError struct {
@@ -16,7 +16,7 @@ type MessageHandleError struct {
 }
 
 func (e MessageHandleError) Error() string {
-	return "Message handle error: " + e.Detail
+	return "message handle error: " + e.Detail
 }
 
 type UnknownDBOperationException struct {
@@ -24,7 +24,7 @@ type UnknownDBOperationException struct {
 }
 
 func (e UnknownDBOperationException) Error() string {
-	return fmt.Sprintf("Unknown data base update exception, %s", e.Detail)
+	return fmt.Sprintf("unknown data base update exception, %s", e.Detail)
 }
 type MsgAlreadyExists struct {
 	MsgId string
@@ -32,7 +32,7 @@ type MsgAlreadyExists struct {
 }
 
 func (e MsgAlreadyExists) Error() string  {
-	return fmt.Sprintf("Message already exists, ID: %s, Status %s", e.MsgId, e.Status)
+	return fmt.Sprintf("message already exists, ID: %s, Status %s", e.MsgId, e.Status)
 }
 
 type AttrTypeError struct {
@@ -41,7 +41,7 @@ type AttrTypeError struct {
 }
 
 func (e AttrTypeError) Error() string {
-	return fmt.Sprintf("Attribute type error, except: %s, value: %s.", e.Type, e.Value)
+	return fmt.Sprintf("attribute type error, except: %s, value: %s.", e.Type, e.Value)
 }
 
 
@@ -51,7 +51,7 @@ type NoSuchMessage struct {
 }
 
 func (e NoSuchMessage) Error() string {
-	return fmt.Sprintf("No such message info, messaeg id: %s. %s", e.MsgId, e.Detail)
+	return fmt.Sprintf("no such message info, messaeg id: %s. %s", e.MsgId, e.Detail)
 }
 
 type MessageDeliveryFailed struct {
@@ -61,6 +61,14 @@ type MessageDeliveryFailed struct {
 }
 
 func (e MessageDeliveryFailed) Error() string {
-	return fmt.Sprintf("Message delivery failed, " +
+	return fmt.Sprintf("message delivery failed, " +
 		"message id: %s, status: %s, retried: %d", e.MsgId, e.Status, e.Retried)
+}
+
+type InvalidParameters struct {
+	Content string
+}
+
+func (e InvalidParameters) Error() string {
+	return fmt.Sprintf("Invalid parameters: %s", e.Content)
 }
