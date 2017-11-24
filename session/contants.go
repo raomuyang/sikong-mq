@@ -18,10 +18,22 @@ const (
 	queue/set name
  */
 const (
-	KRecipientSet = "sk-rec-set"
-	KMessageQueue = "sk-msg-q"
-	KRetrySet  = "sk-rty-s"
-	KRecentMap = "sk-recently"
+	// recipients
+	KRecipientSet    = "sk-rec-set"
+
+	// recent invoke information
+	KRecentMap       = "sk-recently"
+
+	// msg wait queue
+	KMessageQueue    = "sk-msg-q"
+
+	// msg send time
+	KMessageMap      = "sk-msg-time-m"
+
+	// msg retry queue
+	KMessageRetryQueue = "sk-rty-q"
+
+	KDeadLetterQueue = "sk-dl-q"
 )
 
 /**
@@ -60,6 +72,7 @@ const (
 	MAck     = "ack"
 	MReject  = "reject"
 	MError   = "error"
+	MDead	 = "dead"
 )
 
 const (

@@ -172,7 +172,6 @@ func RecentlyAssignedRecord(applicationId string) (map[string] int, error) {
 func UpdateRecipientAssigned(recipient RecipientInfo) (int, error) {
 	dbConn := Pool.Get()
 	theMap := KRecentMap + "/" + recipient.ApplicationId
-	fmt.Println("HINCRBY", theMap, recipient.RecipientId, 1)
 	times, err := redis.Int(dbConn.Do("HINCRBY", theMap, recipient.RecipientId, 1))
 	if err != nil {
 		return -1, UnknownDBOperationException{Detail: "Recipient assigned time " +
@@ -205,6 +204,7 @@ func GetMessageInfo(msgId string) (*Message, error) {
 	if len(base) == 0 {
 		return nil, NoSuchMessage{MsgId: msgId}
 	}
+	fmt.Println("base:", base)
 	retried, err := strconv.Atoi(base[2])
 	if err != nil {
 		return nil, AttrTypeError{Type: "int", Value: base[2]}
@@ -227,7 +227,7 @@ func DeleteMessage(msgId string) error {
 	if err != nil {
 		return UnknownDBOperationException{"Delete message: " + err.Error()}
 	}
-	_, err = dbConn.Do("SREM", KRetrySet, msgId)
+	_, err = dbConn.Do("HDEL", KMessageMap, msgId)
 	if err != nil {
 		return UnknownDBOperationException{"Remove from message retry set: " + err.Error()}
 	}
@@ -293,9 +293,13 @@ func MessageDequeue() (*Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = dbConn.Do("SADD", KRetrySet, msgId)
+	_, err = dbConn.Do("HMSET", KMessageMap, msgId, time.Now().Nanosecond())
 	if err != nil {
-		return nil, UnknownDBOperationException{Detail: "Add message id to set: " + err.Error()}
+		// rollback
+		_, err2 := dbConn.Do("RPUSH", KMessageQueue, msgId)
+		return nil, UnknownDBOperationException{
+			Detail: fmt.Sprintf("Add message id to set: %s/%s",
+				err.Error(), err2.Error())}
 	}
 
 	err = UpdateMessageStatus(msgId, MSending)
@@ -306,7 +310,10 @@ func MessageDequeue() (*Message, error) {
 	return msg, nil
 }
 
-func MessageDequeueAgain(msgId string) (*Message, error) {
+/**
+	信息重发次数递增
+ */
+func MessageRetryUpdate(msgId string) (*Message, error) {
 	msg, err := GetMessageInfo(msgId)
 	if err != nil {
 		return nil, err
@@ -319,5 +326,27 @@ func MessageDequeueAgain(msgId string) (*Message, error) {
 	if err != nil {
 		return nil, UnknownDBOperationException{Detail: "Increasing failed: " + err.Error()}
 	}
+
+	_, err = dbConn.Do("LPUSH", KMessageRetryQueue, msgId)
+	if err != nil {
+		return nil, UnknownDBOperationException{Detail: "Message enqueue failed: " + err.Error()}
+	}
+
 	return msg, nil
+}
+
+/**
+	Dead letter enqueue
+ */
+func DeadLettleEnqueue(msgId string) error {
+	err := UpdateMessageStatus(msgId, MDead)
+	if err != nil {
+		return err
+	}
+
+	_, err = Pool.Get().Do("LPUSH", KDeadLetterQueue, msgId)
+	if err != nil {
+		return UnknownDBOperationException{Detail: "dead Letter enqueue failed, " + err.Error()}
+	}
+	return nil
 }
