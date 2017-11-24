@@ -67,7 +67,11 @@ func SaveRecipientInfo(recipientInfo RecipientInfo) error {
 	if len(recipientInfo.Status) == 0 {
 		recipientInfo.Status = Alive
 	}
-	_, err := dbConn.Do("HMSET",
+	err := AddApplication(recipientInfo.ApplicationId)
+	if err != nil {
+		return err
+	}
+	_, err = dbConn.Do("HMSET",
 		recipientInfo.RecipientId,
 		KAppId, recipientInfo.ApplicationId,
 		KHost, recipientInfo.Host,
@@ -87,7 +91,17 @@ func SaveRecipientInfo(recipientInfo RecipientInfo) error {
 
 func UpdateRecipient(recipientInfo RecipientInfo) error {
 	dbConn := Pool.Get()
-	err := SaveRecipientInfo(recipientInfo)
+
+	old, err := GetRecipientById(recipientInfo.RecipientId)
+	if old != nil && strings.Compare(old.RecipientId, recipientInfo.RecipientId) == 0 {
+		set := KRecipientSet + "/" + recipientInfo.ApplicationId
+		_, err = dbConn.Do("SREM", set, old.RecipientId)
+		if err != nil {
+			return UnknownDBOperationException{Detail: "remove old recipient failed, " + err.Error()}
+		}
+	}
+
+	err = SaveRecipientInfo(recipientInfo)
 	if err != nil {
 		return err
 	}
@@ -123,28 +137,36 @@ func FindRecipients(applicationId string) ([]*RecipientInfo, error) {
 	var list []*RecipientInfo
 	for i := range rep {
 		id := rep[i]
-		result, err := redis.StringMap(dbConn.Do("HGETALL", id))
+		rec, err := GetRecipientById(id)
 		if err != nil {
 			// TODO log
 			fmt.Println("List recipient member error:", err)
 			continue
 		}
-		weight, err := strconv.Atoi(result[KWeight])
-		if err != nil {
-			return nil, AttrTypeError{Type: "int", Value: result[KWeight]}
-		}
-		rec := RecipientInfo{
-			ApplicationId: applicationId,
-			RecipientId:   id,
-			Host:          result[KHost],
-			Port:          result[KPort],
-			Weight:		   weight,
-			Status:        result[KStatus]}
-
-		list = append(list, &rec)
+		list = append(list, rec)
 	}
 
 	return list, nil
+}
+
+func GetRecipientById(recipientId string) (*RecipientInfo, error) {
+	dbConn := Pool.Get()
+	result, err := redis.StringMap(dbConn.Do("HGETALL", recipientId))
+	if err != nil {
+		return nil, err
+	}
+	weight, err := strconv.Atoi(result[KWeight])
+	if err != nil {
+		return nil, AttrTypeError{Type: "int", Value: result[KWeight]}
+	}
+	rec := RecipientInfo{
+		ApplicationId: result[KAppId],
+		RecipientId:   recipientId,
+		Host:          result[KHost],
+		Port:          result[KPort],
+		Weight:		   weight,
+		Status:        result[KStatus]}
+	return &rec, nil
 }
 
 /**
@@ -319,7 +341,7 @@ func MessageRetryUpdate(msgId string) (*Message, error) {
 		return nil, err
 	}
 	if msg.Retried+1 > Configuration.RetryTimes {
-		return nil, MessageDeliveryFailed{MsgId: msg.MsgId, Status: msg.Status, Retried: msg.Retried}
+		return nil, MessageDead{MsgId: msg.MsgId, Status: msg.Status, Retried: msg.Retried}
 	}
 	dbConn := Pool.Get()
 	_, err = dbConn.Do("HINCRBY", msgId, KRetried, 1)
@@ -349,4 +371,17 @@ func DeadLettleEnqueue(msgId string) error {
 		return UnknownDBOperationException{Detail: "dead Letter enqueue failed, " + err.Error()}
 	}
 	return nil
+}
+
+func AddApplication(appId string) error  {
+	_, err := Pool.Get().Do("SADD", KAppSet, appId)
+	if err != nil {
+		return UnknownDBOperationException{Detail: "application register failed, " + err.Error()}
+	}
+	return nil
+}
+
+func GetApps() []string {
+	list, _ := redis.Strings(Pool.Get().Do("SMEMBERS", KAppSet))
+	return list
 }
