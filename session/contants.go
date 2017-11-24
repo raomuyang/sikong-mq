@@ -1,5 +1,7 @@
 package session
 
+import "time"
+
 /**
 	DB Key
  */
@@ -34,18 +36,23 @@ const (
 	KMessageRetryQueue = "sk-rty-q"
 
 	KDeadLetterQueue = "sk-dl-q"
+
+	KAppSet = "sk-app-s"
 )
 
 /**
 	Sikong-mq Protocol:
  */
 const (
+	PING		  = "ping"
+	PONG		  = "pong"
+
 	PAppID        = "appid"
 	PMsgId        = "msgid"
 	PRequestType  = "type"
 	PContent      = "content"
 	Delim         = "\r\n"
-	End			  = "\r\n\r\n"
+	End			  = Delim + Delim
 	Separator     = "="
 
 	TopicMsg = "topic"
@@ -78,4 +85,8 @@ const (
 const (
 	Alive = "alive"
 	Lost = "lost"
+)
+
+const (
+	ConnectTimeOut = 5 * time.Second
 )

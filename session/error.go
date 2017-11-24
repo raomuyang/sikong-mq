@@ -54,13 +54,13 @@ func (e NoSuchMessage) Error() string {
 	return fmt.Sprintf("no such message info, messaeg id: %s. %s", e.MsgId, e.Detail)
 }
 
-type MessageDeliveryFailed struct {
+type MessageDead struct {
 	MsgId string
 	Status string
 	Retried int
 }
 
-func (e MessageDeliveryFailed) Error() string {
+func (e MessageDead) Error() string {
 	return fmt.Sprintf("message delivery failed, " +
 		"message id: %s, status: %s, retried: %d", e.MsgId, e.Status, e.Retried)
 }
