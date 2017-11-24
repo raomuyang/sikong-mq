@@ -33,9 +33,9 @@ func processRejectedMsg(msgId string) error {
 /**
 	遍历一次所有的Recipients，将失联的标记为Lost
  */
-func CheckRecipientsAvailable()  {
+func CheckRecipientsAvailable() {
 	apps := GetApps()
-	for i := range GetApps(){
+	for i := range GetApps() {
 		appId := apps[i]
 		recipients, err := FindRecipients(appId)
 		if err != nil {
@@ -76,7 +76,7 @@ func Heartbeat(connect net.Conn) bool {
 	buf := make([]byte, 10)
 	connect.SetReadDeadline(time.Now().Add(ConnectTimeOut))
 	read, err := connect.Read(buf)
-	if read < len(PONG){
+	if read < len(PONG) {
 		// TODO log
 		return false
 	}
@@ -121,4 +121,40 @@ func RecipientBalance(appId string) (*RecipientInfo, error) {
 		}
 	}
 	return recipient, nil
+}
+
+func DeliveryMessage(appId string, content <-chan []byte) (net.Conn, error) {
+
+	var conn net.Conn
+	for {
+		recipient, err := RecipientBalance(appId)
+		if err != nil {
+			continue
+		}
+		address := recipient.Host + ":" + recipient.Port
+		conn, err = net.DialTimeout("tcp", address, ConnectTimeOut)
+		if err != nil {
+			RemoveLostRecipient(recipient.RecipientId)
+		}
+	}
+	if conn != nil {
+		return nil, NoneAvailableRecipient{AppId: appId}
+	}
+
+	for {
+		buf, ok := <-content
+		if !ok {
+			// TODO log
+			break
+		}
+		err := WriteBuffer(conn, buf)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return conn, nil
+}
+
+func RemoveLostRecipient(recipientId string)  {
+
 }

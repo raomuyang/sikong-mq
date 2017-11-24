@@ -72,3 +72,12 @@ type InvalidParameters struct {
 func (e InvalidParameters) Error() string {
 	return fmt.Sprintf("Invalid parameters: %s", e.Content)
 }
+
+type NoneAvailableRecipient struct {
+	AppId string
+}
+
+func (e NoneAvailableRecipient) Error() string {
+	return fmt.Sprintf("None available recipient: %s", e.AppId)
+}
+
