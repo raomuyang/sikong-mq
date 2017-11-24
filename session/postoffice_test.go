@@ -15,7 +15,7 @@ const (
 		PRequestType + Separator + TopicMsg + End
 )
 
-func testInvokeHandleStream() []Message {
+func testInvokeDecodeMessage() []Message {
 	input := make(chan []byte, 4)
 	go func() {
 
@@ -49,8 +49,8 @@ func testInvokeHandleStream() []Message {
 	return list
 }
 
-func TestHandleStream(t *testing.T) {
-	list := testInvokeHandleStream()
+func TestDecodeMessage(t *testing.T) {
+	list := testInvokeDecodeMessage()
 	if len(list) != 2 {
 		t.Error("Decode failed.")
 	}
@@ -61,9 +61,9 @@ func TestHandleStream(t *testing.T) {
 	}
 }
 
-func BenchmarkHandleStream(b *testing.B) {
+func BenchmarkDecodeMessage(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		testInvokeHandleStream()
+		testInvokeDecodeMessage()
 	}
 
 }
