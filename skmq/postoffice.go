@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"time"
 	"strings"
+	"sync"
 )
 
 type RecipientInfo struct {
@@ -54,6 +55,10 @@ func OpenServer() {
 	InitDBConfig(*DBConfiguration)
 	laddr := Configuration.ListenerHost + ":" + Configuration.ListenerPort
 	fmt.Println("Server: open message queue server, listen " + laddr)
+
+	go schedule()
+	heartbeatCyclically()
+
 	listener, err := net.Listen("tcp", laddr)
 	if err != nil {
 		panic(err)
@@ -69,7 +74,7 @@ func OpenServer() {
 		if err != nil {
 			panic(err)
 		}
-		communication(connect)
+		receive(connect)
 	}
 }
 
@@ -77,7 +82,94 @@ func StopServer() {
 	stop = true
 }
 
-func communication(connect net.Conn) {
+
+func heartbeatCyclically()  {
+	go func() {
+		CheckRecipientsAvailable()
+		time.Sleep(time.Minute)
+	}()
+}
+
+func schedule()  {
+	sendQueue := make(chan Message, SendBuf)
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		// Msg dequeue
+		for {
+			if stop {
+				wg.Done()
+				break
+			}
+			msg, err := MessageDequeue(KMessageQueue)
+			if err != nil {
+				fmt.Println("Scheduler: dequeue error, " + err.Error())
+				time.Sleep(10 * time.Second)
+				continue
+			}
+			if msg == nil {
+				continue
+			}
+			sendQueue <- *msg
+		}
+	}()
+
+	go func() {
+		// retry-msg dequeue
+		for {
+			if stop {
+				wg.Done()
+				break
+			}
+			msg, err := MessageDequeue(KMessageRetryQueue)
+			if err != nil {
+				fmt.Println("Scheduler: retry-msg dequeue error, " + err.Error())
+				time.Sleep(30 * time.Second)
+				continue
+			}
+			if msg == nil {
+				continue
+			}
+			sendQueue <- *msg
+		}
+	}()
+
+	go func() {
+		// msg delivery
+		for  {
+			msg, ok := <-sendQueue
+			if !ok {
+				fmt.Println("Scheduler: stop.")
+				break
+			}
+			delivery(msg)
+		}
+	}()
+
+	wg.Wait()
+	close(sendQueue)
+}
+
+func delivery(message Message) {
+	defer func() {
+		e := recover()
+		if e != nil {
+			fmt.Printf("Delivery: panic, %s \n", e)
+		}
+	}()
+	go func() {
+		fmt.Printf("Delivery: delivery message %s/%s \n", message.AppID, message.MsgId)
+		conn, err := DeliveryMessage(message.AppID, EncodeMessage(message))
+		if err != nil {
+			fmt.Println("Delivery: error, " + err.Error())
+			return
+		}
+		reply(conn, handleMessage(DecodeMessage(ReadStream(conn))))
+	}()
+}
+
+func receive(connect net.Conn) {
 	go func() {
 
 		defer func() {
@@ -88,48 +180,6 @@ func communication(connect net.Conn) {
 			}
 		}()
 		reply(connect, handleMessage(DecodeMessage(ReadStream(connect))))
-	}()
-}
-
-func messageQueue()  {
-	sendQueue := make(chan Message, SendBuf)
-	go func() {
-		for {
-			if stop {
-				close(sendQueue)
-				break
-			}
-			msg, err := MessageDequeue()
-			if err != nil {
-				fmt.Println("Error: " + err.Error())
-				time.Sleep(10 * time.Second)
-				continue
-			}
-			sendQueue <- *msg
-		}
-	}()
-
-	go func() {
-		for  {
-			msg, ok := <-sendQueue
-			if !ok {
-				fmt.Println("Stop dequeue.")
-				break
-			}
-			delivery(msg)
-		}
-	}()
-}
-
-func delivery(message Message) {
-	go func() {
-		fmt.Printf("Delivery message: %s/%s \n", message.AppID, message.MsgId)
-		conn, err := DeliveryMessage(message.AppID, EncodeMessage(message))
-		if err != nil {
-			fmt.Println("Error: " + err.Error())
-			return
-		}
-		reply(conn, handleMessage(DecodeMessage(ReadStream(conn))))
 	}()
 }
 

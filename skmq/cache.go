@@ -226,7 +226,6 @@ func GetMessageInfo(msgId string) (*Message, error) {
 	if len(base) == 0 {
 		return nil, NoSuchMessage{MsgId: msgId}
 	}
-	fmt.Println("base:", base)
 	retried, err := strconv.Atoi(base[2])
 	if err != nil {
 		return nil, AttrTypeError{Type: "int", Value: base[2]}
@@ -298,32 +297,51 @@ func MessageEnqueue(message Message) error {
 	return nil
 }
 
-func MessageDequeue() (*Message, error) {
+/**
+	对于重试队列的出队列，当时间未达到重试时间时，函数会发生阻塞
+ */
+func MessageDequeue(queue string) (*Message, error) {
 	dbConn := Pool.Get()
-	result, err := redis.Strings(dbConn.Do("BRPOP", KMessageQueue, 30))
+	result, err := dbConn.Do("BRPOP", queue, 30)
 	if err != nil {
+		if strings.Contains(err.Error(), "nil") {
+			return nil, nil
+		}
 		return nil, UnknownDBOperationException{Detail: "Pop msgId from queue failed: " + err.Error()}
 	}
 
-	if len(result) < 2 {
+	if result == nil {
 		return nil, nil
 	}
+	m, err:= redis.StringMap(result, err)
 
-	msgId := result[1]
+	msgId := m[queue]
 	msg, err := GetMessageInfo(msgId)
 
 	if err != nil {
 		return nil, err
 	}
+
+	if strings.Compare(KMessageRetryQueue, queue) == 0 {
+
+		// sleep
+		lasttime, err := redis.Int(dbConn.Do("HGET", KMessageMap, msgId))
+		if err == nil && lasttime != 0 {
+			sleep := time.Now().Nanosecond() - lasttime + int(RetrySleep)
+			if sleep > 0 {
+				time.Sleep(time.Duration(sleep))
+			}
+		}
+	}
+
 	_, err = dbConn.Do("HMSET", KMessageMap, msgId, time.Now().Nanosecond())
 	if err != nil {
 		// rollback
-		_, err2 := dbConn.Do("RPUSH", KMessageQueue, msgId)
+		_, err2 := dbConn.Do("RPUSH", queue, msgId)
 		return nil, UnknownDBOperationException{
 			Detail: fmt.Sprintf("Add message id to set: %s/%s",
 				err.Error(), err2.Error())}
 	}
-
 	err = UpdateMessageStatus(msgId, MSending)
 	if err != nil {
 		return nil, err
@@ -332,10 +350,11 @@ func MessageDequeue() (*Message, error) {
 	return msg, nil
 }
 
+
 /**
 	信息重发次数递增
  */
-func MessageRetryUpdate(msgId string) (*Message, error) {
+func MessageEntryRetryQueue(msgId string) (*Message, error) {
 	msg, err := GetMessageInfo(msgId)
 	if err != nil {
 		return nil, err
@@ -349,6 +368,12 @@ func MessageRetryUpdate(msgId string) (*Message, error) {
 		return nil, UnknownDBOperationException{Detail: "Increasing failed: " + err.Error()}
 	}
 
+	_, err = dbConn.Do("HMSET", KMessageMap, msgId, time.Now().Nanosecond())
+	if err != nil {
+		return nil, UnknownDBOperationException{
+			Detail: fmt.Sprintf("Add message id to set: %s/%s",
+				err.Error(), err.Error())}
+	}
 	_, err = dbConn.Do("LPUSH", KMessageRetryQueue, msgId)
 	if err != nil {
 		return nil, UnknownDBOperationException{Detail: "Message enqueue failed: " + err.Error()}

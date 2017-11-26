@@ -15,7 +15,7 @@ import (
  */
 func processRejectedMsg(msgId string) error {
 
-	_, err := MessageRetryUpdate(msgId)
+	_, err := MessageEntryRetryQueue(msgId)
 	switch err.(type) {
 	case UnknownDBOperationException:
 		// TODO log
@@ -135,14 +135,20 @@ func DeliveryMessage(appId string, content []byte) (net.Conn, error) {
 		if err != nil {
 			continue
 		}
+		if recipient == nil {
+			break
+		}
 		address := recipient.Host + ":" + recipient.Port
+		fmt.Println("Address ", address)
 		conn, err = net.DialTimeout("tcp", address, ConnectTimeOut)
 		if err != nil {
 			RemoveLostRecipient(*recipient)
 		}
 	}
-	if conn != nil {
-		return nil, NoneAvailableRecipient{AppId: appId}
+
+	if conn == nil {
+		err := NoneAvailableRecipient{AppId: appId}
+		return nil, err
 	}
 
 	err := WriteBuffer(conn, content)
