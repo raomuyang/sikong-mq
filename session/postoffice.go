@@ -44,7 +44,8 @@ type Result struct {
 }
 
 const (
-	ChanSize = 8
+	ProcessBuf = 8
+	SendBuf = 1 << 5
 )
 
 var stopServer bool = false
@@ -86,11 +87,52 @@ func communication(connect net.Conn) {
 				fmt.Printf("Error: %v\n", err)
 			}
 		}()
-		replyMessage(connect, handleMessage(DecodeMessage(ReadStream(connect))))
+		reply(connect, handleMessage(DecodeMessage(ReadStream(connect))))
 	}()
 }
 
-func replyMessage(connect net.Conn, repChan <-chan Response) {
+func messageQueue()  {
+	sendQueue := make(chan Message, SendBuf)
+	go func() {
+		for {
+			if stopServer {
+				close(sendQueue)
+				break
+			}
+			msg, err := MessageDequeue()
+			if err != nil {
+				fmt.Println("Error: " + err.Error())
+				time.Sleep(10 * time.Second)
+				continue
+			}
+			sendQueue <- *msg
+		}
+	}()
+
+	go func() {
+		for  {
+			msg, ok := <-sendQueue
+			if !ok {
+				fmt.Println("Stop dequeue.")
+				break
+			}
+			delivery(msg)
+		}
+	}()
+}
+
+func delivery(message Message) {
+	go func() {
+		conn, err := DeliveryMessage(message.AppID, EncodeMessage(message))
+		if err != nil {
+			fmt.Println("Error: " + err.Error())
+			return
+		}
+		reply(conn, handleMessage(DecodeMessage(ReadStream(conn))))
+	}()
+}
+
+func reply(connect net.Conn, repChan <-chan Response) {
 	disconnect := false
 	for {
 		response, ok := <-repChan
@@ -124,7 +166,7 @@ func replyMessage(connect net.Conn, repChan <-chan Response) {
 }
 
 func handleMessage(msgChan <-chan Message) <-chan Response {
-	out := make(chan Response, ChanSize)
+	out := make(chan Response, ProcessBuf)
 	go func() {
 		for {
 			message, ok := <-msgChan
@@ -190,7 +232,7 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 	每个参数之间用两个换行（\r\n\r\n）间隔
  */
 func DecodeMessage(input <-chan []byte) <-chan Message {
-	msgChan := make(chan Message, ChanSize)
+	msgChan := make(chan Message, ProcessBuf)
 	go func() {
 		message := Message{Status: MPending, Retried: 0}
 		var line []byte
