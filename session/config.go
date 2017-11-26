@@ -6,9 +6,8 @@ type MQConfig struct {
 
 	ACKTimeout int
 
-	// To limit the queue size,
-	// a rate limiter will distributes permits at a configurable rate
-	QueueSize int
+	// A rate limiter will distributes permits at a configurable rate (n/second)
+	Rate int
 
 	ListenerHost string
 
@@ -49,15 +48,20 @@ type DBConfig struct {
 }
 
 var (
-	Configuration *MQConfig
+	Configuration   *MQConfig
+	DBConfiguration *DBConfig
 )
 
 func init() {
 	Configuration = &MQConfig{
 		RetryTimes:   5,
 		ACKTimeout:   3200,
-		QueueSize:    10000,
+		Rate:         10000,
 		ListenerHost: "127.0.0.1",
 		ListenerPort: "1734"}
+
+	DBConfiguration = &DBConfig{
+		Address:      "127.0.0.1:6379",
+		DB:           1}
 
 }

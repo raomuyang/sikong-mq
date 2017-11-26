@@ -2,8 +2,6 @@ package session
 
 import (
 	"net"
-	"bufio"
-	"io"
 	"fmt"
 	"bytes"
 	"errors"
@@ -11,6 +9,15 @@ import (
 	"time"
 	"strings"
 )
+
+type RecipientInfo struct {
+	RecipientId string `json:"id"`
+	ApplicationId string `json:"app_id"`
+	Host string `json:"host"`
+	Port string `json:"port"`
+	Status string `json:"-"`
+	Weight int `json:"weight"`
+}
 
 /**
 	模仿Http协议，每个请求行均以\r\n间隔
@@ -27,6 +34,7 @@ type Message struct {
 type Response struct {
 	Status  string `json:"status"`
 	Content string `json:"content"`
+	Disconnect bool `json:"-"`
 }
 
 type Result struct {
@@ -35,10 +43,17 @@ type Result struct {
 	FinishedTime time.Time
 }
 
+const (
+	ProcessBuf = 8
+	SendBuf = 1 << 5
+)
+
 var stopServer bool = false
 
 func OpenServer() {
+	InitDBConfig(*DBConfiguration)
 	laddr := Configuration.ListenerHost + ":" + Configuration.ListenerPort
+	fmt.Println("Open message queue server, listen " + laddr)
 	listener, err := net.Listen("tcp", laddr)
 	if err != nil {
 		panic(err)
@@ -50,6 +65,7 @@ func OpenServer() {
 			break
 		}
 		connect, err := listener.Accept()
+		fmt.Printf("accept: %v\n", connect)
 		if err != nil {
 			panic(err)
 		}
@@ -68,116 +84,155 @@ func communication(connect net.Conn) {
 			err := recover()
 			if err != nil {
 				// TODO log
+				fmt.Printf("Error: %v\n", err)
 			}
 		}()
-		responseMessage(connect, handleMessage(decodeMessage(readStream(connect))))
+		reply(connect, handleMessage(DecodeMessage(ReadStream(connect))))
 	}()
 }
 
-func responseMessage(connect net.Conn, repChan <-chan Response) {
-	response, ok := <-repChan
-	if !ok {
-		panic(errors.New("message handler close the channel"))
-	}
-	rs, err := json.Marshal(response)
-	if err != nil {
-		panic(errors.New("json marshal struct failed"))
-	}
-	rs = append(rs, []byte(Delim)...)
+func messageQueue()  {
+	sendQueue := make(chan Message, SendBuf)
+	go func() {
+		for {
+			if stopServer {
+				close(sendQueue)
+				break
+			}
+			msg, err := MessageDequeue()
+			if err != nil {
+				fmt.Println("Error: " + err.Error())
+				time.Sleep(10 * time.Second)
+				continue
+			}
+			sendQueue <- *msg
+		}
+	}()
 
-	// TODO 如果信息量大一次发送会有问题
-	w, err := connect.Write(rs)
-	fmt.Println(w)
-	if err != nil {
-		// TODO log
-		fmt.Println(err)
+	go func() {
+		for  {
+			msg, ok := <-sendQueue
+			if !ok {
+				fmt.Println("Stop dequeue.")
+				break
+			}
+			delivery(msg)
+		}
+	}()
+}
+
+func delivery(message Message) {
+	go func() {
+		conn, err := DeliveryMessage(message.AppID, EncodeMessage(message))
+		if err != nil {
+			fmt.Println("Error: " + err.Error())
+			return
+		}
+		reply(conn, handleMessage(DecodeMessage(ReadStream(conn))))
+	}()
+}
+
+func reply(connect net.Conn, repChan <-chan Response) {
+	disconnect := false
+	for {
+		response, ok := <-repChan
+		if !ok {
+			fmt.Println("message handler close the channel")
+			break
+		}
+
+		rs, err := json.Marshal(response)
+		if err != nil {
+			panic(errors.New("json marshal struct failed"))
+		}
+		err = SendMessage(connect, rs)
+
+		if err != nil {
+			// TODO log
+			fmt.Println(err)
+		}
+
+		disconnect = response.Disconnect || disconnect
 	}
+
+	if disconnect {
+		err := connect.Close()
+		if err != nil {
+			// TODO log
+			fmt.Println("Close connect failed, " + err.Error())
+		}
+	}
+
 }
 
 func handleMessage(msgChan <-chan Message) <-chan Response {
-	out := make(chan Response, 8)
+	out := make(chan Response, ProcessBuf)
 	go func() {
-		message, ok := <-msgChan
-		if !ok {
-			panic(MessageHandleError{"Channel closed"})
+		for {
+			message, ok := <-msgChan
+			if !ok {
+				fmt.Println("Message channel closed.")
+				break
+			}
+			fmt.Printf("Handle message: %s-%s/%s \n", message.AppID, message.MsgId, message.Type)
+			switch message.Type {
+			case RegisterMsg:
+				err := processRegisterMsg(message)
+				status := MAck
+				var content = "Recipient register successful."
+				if err != nil {
+					// TODO log
+					status = MReject
+					content = err.Error()
+				}
+				out <- Response{Status: status, Content: content}
+			case MArrivedMsg:
+				disconnect := true
+				err := arrive(message)
+				status := MAck
+				if err != nil {
+					status = MError
+					disconnect = false
+				}
+				out <- Response{Status: status, Disconnect: disconnect}
+			case MAckMsg:
+				err := ack(message)
+				status := MAck
+				if err != nil {
+					status = MError
+				}
+				out <- Response{Status: status}
+			case MRejectMsg:
+				err := reject(message)
+				status := MAck
+				disconnect := true
+				if err != nil {
+					status = MError
+					disconnect = false
+				}
+				out <- Response{Status: status, Disconnect: disconnect}
+			default:
+				content, err := saveMessage(message)
+				status := MAck
+				if err != nil {
+					status = MReject
+					content = "Message enqueue failed"
+				}
+				out <- Response{Status: status, Content: content}
+			}
 		}
-
-		switch message.Type {
-		case RegisterMsg:
-			err := processRegisterMsg(message)
-			status := MAck
-			var content = "Register successful."
-			if err != nil {
-				// TODO log
-				status = MReject
-				content = err.Error()
-			}
-			out <- Response{Status: status, Content: content}
-		case MAckMsg:
-			err := ack(message)
-			status := MAck
-			if err != nil {
-				status = MError
-			}
-			out <- Response{Status: status}
-		case MReadyMsg:
-			err := ready(message)
-			status := MAck
-			content := ""
-			if err != nil {
-				status = MError
-				content = err.Error()
-			}
-			out <- Response{Status: status, Content: content}
-		case MRejectMsg:
-			reject(message)
-		case MQueryMsg:
-			msgStatus, err := queryMessageStatus(message)
-			status := MAck
-			content := msgStatus
-			if err != nil {
-				status = MReject
-				content = err.Error()
-			}
-			out <- Response{Status: status, Content: content}
-		default:
-			err := saveMessage(message)
-			status := MAck
-			content := "Message enqueue"
-			if err != nil {
-				status = MReject
-				content = "Message enqueue failed"
-			}
-			out <- Response{Status: status, Content: content}
-		}
+		close(out)
 	}()
 	return out
 }
 
-func readStream(connect net.Conn) (<-chan []byte) {
-	input := make(chan []byte, 8)
 
-	go func() {
-		reader := bufio.NewReader(connect)
-		buf := make([]byte, 1024)
-		for {
-			read, err := reader.Read(buf)
-			if err != nil {
-				if err == io.EOF {
-					break
-				} else {
-					panic(err)
-				}
-			}
-			input <- buf[:read]
-		}
-		close(input)
-	}()
-	return input
-}
-
-func decodeMessage(input <-chan []byte) <-chan Message {
-	msgChan := make(chan Message, 8)
+/**
+	这里使用四个换行（\r\n\r\n）来间隔一段消息解决tcp消息粘包问题，
+	每个参数之间用两个换行（\r\n\r\n）间隔
+ */
+func DecodeMessage(input <-chan []byte) <-chan Message {
+	msgChan := make(chan Message, ProcessBuf)
 	go func() {
 		message := Message{Status: MPending, Retried: 0}
 		var line []byte
@@ -233,6 +288,14 @@ func decodeMessage(input <-chan []byte) <-chan Message {
 	return msgChan
 }
 
+func EncodeMessage(message Message) []byte{
+	header := strings.Join([]string{
+		PMsgId, Separator, message.MsgId, Delim,
+		PRequestType, Separator, message.Type, Delim}, "")
+	content := append([]byte(PContent + Separator), message.Content...)
+	return append(append([]byte(header), content...), []byte(End)...)
+}
+
 /**
 	Recipient register
  */
@@ -248,7 +311,6 @@ func processRegisterMsg(message Message) error {
 
 /**
 	Recipient ack
-	TODO 如何处理
  */
 func ack(message Message) error {
 	return DeleteMessage(message.MsgId)
@@ -261,14 +323,18 @@ func reject(message Message) error {
 	return nil
 }
 
-func ready(message Message) error {
-	return UpdateMessageStatus(message.MsgId, MReady)
+func arrive(message Message) error {
+	return UpdateMessageStatus(message.MsgId, MArrived)
 }
 
-func queryMessageStatus(message Message) (string, error) {
-	return "", nil
-}
+func saveMessage(message Message) (string, error) {
+	err := MessageEnqueue(message)
+	switch err.(type) {
+	case MsgAlreadyExists:
+		return err.Error(), nil
+	default:
+		return "Message enqueue failed.", err
+	}
+	return "Message enqueue successful", nil
 
-func saveMessage(message Message) error {
-	return MessageEnqueue(message)
 }

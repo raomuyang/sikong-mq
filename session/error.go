@@ -54,13 +54,13 @@ func (e NoSuchMessage) Error() string {
 	return fmt.Sprintf("no such message info, messaeg id: %s. %s", e.MsgId, e.Detail)
 }
 
-type MessageDeliveryFailed struct {
+type MessageDead struct {
 	MsgId string
 	Status string
 	Retried int
 }
 
-func (e MessageDeliveryFailed) Error() string {
+func (e MessageDead) Error() string {
 	return fmt.Sprintf("message delivery failed, " +
 		"message id: %s, status: %s, retried: %d", e.MsgId, e.Status, e.Retried)
 }
@@ -72,3 +72,12 @@ type InvalidParameters struct {
 func (e InvalidParameters) Error() string {
 	return fmt.Sprintf("Invalid parameters: %s", e.Content)
 }
+
+type NoneAvailableRecipient struct {
+	AppId string
+}
+
+func (e NoneAvailableRecipient) Error() string {
+	return fmt.Sprintf("None available recipient: %s", e.AppId)
+}
+
