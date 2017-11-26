@@ -138,19 +138,19 @@ func reply(connect net.Conn, repChan <-chan Response) {
 	for {
 		response, ok := <-repChan
 		if !ok {
-			fmt.Println("message handler close the channel")
+			fmt.Println("Reply: message handler close the channel")
 			break
 		}
 
 		rs, err := json.Marshal(response)
 		if err != nil {
-			panic(errors.New("json marshal struct failed"))
+			panic(errors.New("reply: json marshal struct failed"))
 		}
 		err = SendMessage(connect, rs)
 
 		if err != nil {
 			// TODO log
-			fmt.Println(err)
+			fmt.Println("Reply: " + err.Error())
 		}
 
 		disconnect = response.Disconnect || disconnect
@@ -160,7 +160,7 @@ func reply(connect net.Conn, repChan <-chan Response) {
 		err := connect.Close()
 		if err != nil {
 			// TODO log
-			fmt.Println("Close connect failed, " + err.Error())
+			fmt.Println("Reply: close connect failed, " + err.Error())
 		}
 	}
 
