@@ -1,4 +1,4 @@
-package session
+package skmq
 
 type MQConfig struct {
 	// The max retry times of message push to consumer

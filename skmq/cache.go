@@ -1,4 +1,4 @@
-package session
+package skmq
 
 import (
 	"github.com/garyburd/redigo/redis"
