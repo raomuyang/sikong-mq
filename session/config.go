@@ -49,7 +49,8 @@ type DBConfig struct {
 }
 
 var (
-	Configuration *MQConfig
+	Configuration   *MQConfig
+	DBConfiguration *DBConfig
 )
 
 func init() {
@@ -59,5 +60,9 @@ func init() {
 		QueueSize:    10000,
 		ListenerHost: "127.0.0.1",
 		ListenerPort: "1734"}
+
+	DBConfiguration = &DBConfig{
+		Address:      "127.0.0.1:6379",
+		DB:           1}
 
 }

@@ -123,7 +123,11 @@ func RecipientBalance(appId string) (*RecipientInfo, error) {
 	return recipient, nil
 }
 
-func DeliveryMessage(appId string, content <-chan []byte) (net.Conn, error) {
+/**
+	从注册的接收方中挑选一台用于发送，并将建立的连接返回
+	暂时只支持点到点的消息投递
+ */
+func DeliveryMessage(appId string, content []byte) (net.Conn, error) {
 
 	var conn net.Conn
 	for {
@@ -134,27 +138,26 @@ func DeliveryMessage(appId string, content <-chan []byte) (net.Conn, error) {
 		address := recipient.Host + ":" + recipient.Port
 		conn, err = net.DialTimeout("tcp", address, ConnectTimeOut)
 		if err != nil {
-			RemoveLostRecipient(recipient.RecipientId)
+			RemoveLostRecipient(*recipient)
 		}
 	}
 	if conn != nil {
 		return nil, NoneAvailableRecipient{AppId: appId}
 	}
 
-	for {
-		buf, ok := <-content
-		if !ok {
-			// TODO log
-			break
-		}
-		err := WriteBuffer(conn, buf)
-		if err != nil {
-			return nil, err
-		}
+	err := WriteBuffer(conn, content)
+	if err != nil {
+		return nil, err
 	}
 	return conn, nil
 }
 
-func RemoveLostRecipient(recipientId string)  {
-
+/**
+	避免阻塞
+ */
+func RemoveLostRecipient(recipient RecipientInfo) {
+	go func() {
+		recipient.Status = Lost
+		UpdateRecipient(recipient)
+	}()
 }

@@ -34,6 +34,7 @@ type Message struct {
 type Response struct {
 	Status  string `json:"status"`
 	Content string `json:"content"`
+	Disconnect bool `json:"-"`
 }
 
 type Result struct {
@@ -49,7 +50,9 @@ const (
 var stopServer bool = false
 
 func OpenServer() {
+	InitDBConfig(*DBConfiguration)
 	laddr := Configuration.ListenerHost + ":" + Configuration.ListenerPort
+	fmt.Println("Open message queue server, listen " + laddr)
 	listener, err := net.Listen("tcp", laddr)
 	if err != nil {
 		panic(err)
@@ -61,6 +64,7 @@ func OpenServer() {
 			break
 		}
 		connect, err := listener.Accept()
+		fmt.Printf("accept: %v\n", connect)
 		if err != nil {
 			panic(err)
 		}
@@ -79,6 +83,7 @@ func communication(connect net.Conn) {
 			err := recover()
 			if err != nil {
 				// TODO log
+				fmt.Printf("Error: %v\n", err)
 			}
 		}()
 		replyMessage(connect, handleMessage(DecodeMessage(ReadStream(connect))))
@@ -86,6 +91,7 @@ func communication(connect net.Conn) {
 }
 
 func replyMessage(connect net.Conn, repChan <-chan Response) {
+	disconnect := false
 	for {
 		response, ok := <-repChan
 		if !ok {
@@ -103,6 +109,16 @@ func replyMessage(connect net.Conn, repChan <-chan Response) {
 			// TODO log
 			fmt.Println(err)
 		}
+
+		disconnect = response.Disconnect || disconnect
+	}
+
+	if disconnect {
+		err := connect.Close()
+		if err != nil {
+			// TODO log
+			fmt.Println("Close connect failed, " + err.Error())
+		}
 	}
 
 }
@@ -116,17 +132,27 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 				fmt.Println("Message channel closed.")
 				break
 			}
+			fmt.Printf("Handle message: %s-%s/%s \n", message.AppID, message.MsgId, message.Type)
 			switch message.Type {
 			case RegisterMsg:
 				err := processRegisterMsg(message)
 				status := MAck
-				var content = "Register successful."
+				var content = "Recipient register successful."
 				if err != nil {
 					// TODO log
 					status = MReject
 					content = err.Error()
 				}
 				out <- Response{Status: status, Content: content}
+			case MArrivedMsg:
+				disconnect := true
+				err := arrive(message)
+				status := MAck
+				if err != nil {
+					status = MError
+					disconnect = false
+				}
+				out <- Response{Status: status, Disconnect: disconnect}
 			case MAckMsg:
 				err := ack(message)
 				status := MAck
@@ -134,30 +160,18 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 					status = MError
 				}
 				out <- Response{Status: status}
-			case MReadyMsg:
-				err := ready(message)
+			case MRejectMsg:
+				err := reject(message)
 				status := MAck
-				content := ""
+				disconnect := true
 				if err != nil {
 					status = MError
-					content = err.Error()
+					disconnect = false
 				}
-				out <- Response{Status: status, Content: content}
-			case MRejectMsg:
-				reject(message)
-			case MQueryMsg:
-				msgStatus, err := queryMessageStatus(message)
-				status := MAck
-				content := msgStatus
-				if err != nil {
-					status = MReject
-					content = err.Error()
-				}
-				out <- Response{Status: status, Content: content}
+				out <- Response{Status: status, Disconnect: disconnect}
 			default:
-				err := saveMessage(message)
+				content, err := saveMessage(message)
 				status := MAck
-				content := "Message enqueue"
 				if err != nil {
 					status = MReject
 					content = "Message enqueue failed"
@@ -255,7 +269,6 @@ func processRegisterMsg(message Message) error {
 
 /**
 	Recipient ack
-	TODO 如何处理
  */
 func ack(message Message) error {
 	return DeleteMessage(message.MsgId)
@@ -268,14 +281,18 @@ func reject(message Message) error {
 	return nil
 }
 
-func ready(message Message) error {
-	return UpdateMessageStatus(message.MsgId, MReady)
+func arrive(message Message) error {
+	return UpdateMessageStatus(message.MsgId, MArrived)
 }
 
-func queryMessageStatus(message Message) (string, error) {
-	return "", nil
-}
+func saveMessage(message Message) (string, error) {
+	err := MessageEnqueue(message)
+	switch err.(type) {
+	case MsgAlreadyExists:
+		return err.Error(), nil
+	default:
+		return "Message enqueue failed.", err
+	}
+	return "Message enqueue successful", nil
 
-func saveMessage(message Message) error {
-	return MessageEnqueue(message)
 }

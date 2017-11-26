@@ -58,13 +58,10 @@ const (
 	TopicMsg = "topic"
 	QueueMsg = "queue"
 
-	MQueryMsg = "query"
-	MAckMsg = "ack"
-	MRejectMsg = "reject"
-
-	// Notify system the transaction is ready
-	MReadyMsg = "ready"
-	MDiscard = "discard"
+	// Consumer reply
+	MAckMsg     = "ack"
+	MRejectMsg  = "reject"
+	MArrivedMsg = "arrived"
 
 	RegisterMsg = "register"
 )
@@ -74,12 +71,12 @@ const (
  */
 const (
 	MPending = "pending"
-	MReady 	 = "Ready"
 	MSending = "sending"
+	MArrived = "arrived"
 	MAck     = "ack"
 	MReject  = "reject"
 	MError   = "error"
-	MDead	 = "dead"
+	MDead    = "dead"
 )
 
 const (
