@@ -48,24 +48,24 @@ const (
 	SendBuf = 1 << 5
 )
 
-var stopServer bool = false
+var stop bool = false
 
 func OpenServer() {
 	InitDBConfig(*DBConfiguration)
 	laddr := Configuration.ListenerHost + ":" + Configuration.ListenerPort
-	fmt.Println("Open message queue server, listen " + laddr)
+	fmt.Println("Server: open message queue server, listen " + laddr)
 	listener, err := net.Listen("tcp", laddr)
 	if err != nil {
 		panic(err)
 	}
 	defer listener.Close()
 	for {
-		if stopServer {
-			fmt.Println("Shutdown server...")
+		if stop {
+			fmt.Println("Server: shutdown server...")
 			break
 		}
 		connect, err := listener.Accept()
-		fmt.Printf("accept: %v\n", connect)
+		fmt.Printf("Server: accept %v\n", connect.RemoteAddr())
 		if err != nil {
 			panic(err)
 		}
@@ -74,7 +74,7 @@ func OpenServer() {
 }
 
 func StopServer() {
-	stopServer = true
+	stop = true
 }
 
 func communication(connect net.Conn) {
@@ -95,7 +95,7 @@ func messageQueue()  {
 	sendQueue := make(chan Message, SendBuf)
 	go func() {
 		for {
-			if stopServer {
+			if stop {
 				close(sendQueue)
 				break
 			}
@@ -172,10 +172,10 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 		for {
 			message, ok := <-msgChan
 			if !ok {
-				fmt.Println("Message channel closed.")
+				fmt.Println("Handler: message channel closed.")
 				break
 			}
-			fmt.Printf("Handle message: %s/%s[%s] \n", message.AppID, message.MsgId, message.Type)
+			fmt.Printf("Handler: handle message %s/%s[%s] \n", message.AppID, message.MsgId, message.Type)
 			switch message.Type {
 			case RegisterMsg:
 				err := processRegisterMsg(message)
