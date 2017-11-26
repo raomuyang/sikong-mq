@@ -45,6 +45,7 @@ func CheckRecipientsAvailable() {
 		for r := range recipients {
 			recipient := recipients[r]
 			address := fmt.Sprintf("%s:%s", recipient.Host, recipient.Port)
+			fmt.Println("Heartbeat:", address)
 			connect, err := net.DialTimeout("tcp", address, ConnectTimeOut)
 			if err != nil {
 				fmt.Println(err)
