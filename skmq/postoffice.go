@@ -123,6 +123,7 @@ func messageQueue()  {
 
 func delivery(message Message) {
 	go func() {
+		fmt.Printf("Delivery message: %s/%s \n", message.AppID, message.MsgId)
 		conn, err := DeliveryMessage(message.AppID, EncodeMessage(message))
 		if err != nil {
 			fmt.Println("Error: " + err.Error())
@@ -174,7 +175,7 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 				fmt.Println("Message channel closed.")
 				break
 			}
-			fmt.Printf("Handle message: %s-%s/%s \n", message.AppID, message.MsgId, message.Type)
+			fmt.Printf("Handle message: %s/%s[%s] \n", message.AppID, message.MsgId, message.Type)
 			switch message.Type {
 			case RegisterMsg:
 				err := processRegisterMsg(message)
@@ -290,6 +291,7 @@ func DecodeMessage(input <-chan []byte) <-chan Message {
 
 func EncodeMessage(message Message) []byte{
 	header := strings.Join([]string{
+		PAppID, Separator, message.AppID, Delim,
 		PMsgId, Separator, message.MsgId, Delim,
 		PRequestType, Separator, message.Type, Delim}, "")
 	content := append([]byte(PContent + Separator), message.Content...)
