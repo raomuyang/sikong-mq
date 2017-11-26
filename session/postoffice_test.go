@@ -4,49 +4,60 @@ import (
 	"fmt"
 	"testing"
 	"bytes"
+	"strings"
 )
 
 const (
-	body = "content body" + Delim
-	msg = PAppID + Separator + "applicationid" + Delim +
+	MsgContent = "content body"
+	MsgStr  = PContent + Separator + MsgContent + Delim +
+		PAppID + Separator + "applicationid" + Delim +
 		PMsgId + Separator + "messageid" + Delim +
-		PRequestType + Separator + TopicMsg
+		PRequestType + Separator + TopicMsg + End
 )
 
-func testInvokeHandleStream() Message {
+func testInvokeHandleStream() []Message {
 	input := make(chan []byte, 4)
+	go func() {
+
+		buf := append([]byte(MsgStr), []byte(MsgStr)...)
+		buf = append(buf, []byte(End)...)
+		position := 0
+		for {
+			begin := position
+			end := position + 10
+			if end > len(buf) {
+				end = len(buf)
+			}
+			input <- buf[begin:end]
+			position += 10
+			if position >= len(buf) {
+				break
+			}
+		}
+		close(input)
+	}()
 
 	msgChan := decodeMessage(input)
-
-	contentBody := []byte(body)
-	content := append([]byte(PContent+Separator), contentBody...)
-
-	buf := append([]byte(msg), []byte(Delim)...)
-	buf = append(buf, []byte(content)...)
-
-	position := 0
+	var list []Message
 	for {
-		begin := position
-		end := position + 10
-		if end > len(buf) {
-			end = len(buf)
-		}
-		input <- buf[begin:end]
-		position += 10
-		if position >= len(buf) {
+		msg, ok:= <-msgChan
+		if !ok {
 			break
 		}
+		list = append(list, msg)
 	}
-	close(input)
-	messageEntity := <-msgChan
-	return messageEntity
+	return list
 }
 
 func TestHandleStream(t *testing.T) {
-	messageEntity := testInvokeHandleStream()
-	fmt.Printf("%v \n", messageEntity)
-	if bytes.Equal([]byte(body), messageEntity.Content) {
-		t.Error("PContent not equal.")
+	list := testInvokeHandleStream()
+	if len(list) != 2 {
+		t.Error("Decode failed.")
+	}
+	fmt.Printf("%v \n", list[0])
+	if !bytes.Equal([]byte(MsgContent), list[1].Content) ||
+		!(strings.Compare(list[0].MsgId, list[1].MsgId) == 0) {
+		t.Error("Message not equal.")
 	}
 }
 

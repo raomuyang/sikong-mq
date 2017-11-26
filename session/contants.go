@@ -33,6 +33,7 @@ const (
 	PRequestType  = "type"
 	PContent      = "content"
 	Delim         = "\r\n"
+	End			  = "\r\n\r\n"
 	Separator     = "="
 
 	TopicMsg = "topic"
@@ -42,6 +43,10 @@ const (
 	MAckMsg = "ack"
 	MRejectMsg = "reject"
 
+	// Notify system the transaction is ready
+	MReadyMsg = "ready"
+	MDiscard = "discard"
+
 	RegisterMsg = "register"
 )
 
@@ -50,6 +55,7 @@ const (
  */
 const (
 	MPending = "pending"
+	MReady 	 = "Ready"
 	MSending = "sending"
 	MAck     = "ack"
 	MReject  = "reject"
