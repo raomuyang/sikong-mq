@@ -7,20 +7,20 @@ import (
 	"strings"
 )
 
-const (
-	MsgContent = "content body"
-	MsgStr  = PContent + Separator + MsgContent + Delim +
-		PAppID + Separator + "applicationid" + Delim +
-		PMsgId + Separator + "messageid" + Delim +
-		PRequestType + Separator + TopicMsg + End
+var (
+	content = []byte("This is content")
+	testMsg = Message{
+		MsgId: "Test-msg-id",
+		AppID: "test-app-id",
+		Type: TopicMsg,
+		Content: content}
 )
 
 func testInvokeDecodeMessage() []Message {
 	input := make(chan []byte, 4)
 	go func() {
 
-		buf := append([]byte(MsgStr), []byte(MsgStr)...)
-		buf = append(buf, []byte(End)...)
+		buf := append(EncodeMessage(testMsg), EncodeMessage(testMsg)...)
 		position := 0
 		for {
 			begin := position
@@ -37,7 +37,7 @@ func testInvokeDecodeMessage() []Message {
 		close(input)
 	}()
 
-	msgChan := decodeMessage(input)
+	msgChan := DecodeMessage(input)
 	var list []Message
 	for {
 		msg, ok:= <-msgChan
@@ -55,7 +55,7 @@ func TestDecodeMessage(t *testing.T) {
 		t.Error("Decode failed.")
 	}
 	fmt.Printf("%v \n", list[0])
-	if !bytes.Equal([]byte(MsgContent), list[1].Content) ||
+	if !bytes.Equal([]byte(content), list[1].Content) ||
 		!(strings.Compare(list[0].MsgId, list[1].MsgId) == 0) {
 		t.Error("Message not equal.")
 	}

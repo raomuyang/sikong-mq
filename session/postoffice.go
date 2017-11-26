@@ -81,7 +81,7 @@ func communication(connect net.Conn) {
 				// TODO log
 			}
 		}()
-		replyMessage(connect, handleMessage(decodeMessage(ReadStream(connect))))
+		replyMessage(connect, handleMessage(DecodeMessage(ReadStream(connect))))
 	}()
 }
 
@@ -175,7 +175,7 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 	这里使用四个换行（\r\n\r\n）来间隔一段消息解决tcp消息粘包问题，
 	每个参数之间用两个换行（\r\n\r\n）间隔
  */
-func decodeMessage(input <-chan []byte) <-chan Message {
+func DecodeMessage(input <-chan []byte) <-chan Message {
 	msgChan := make(chan Message, ChanSize)
 	go func() {
 		message := Message{Status: MPending, Retried: 0}
@@ -230,6 +230,14 @@ func decodeMessage(input <-chan []byte) <-chan Message {
 		}
 	}()
 	return msgChan
+}
+
+func EncodeMessage(message Message) []byte{
+	header := strings.Join([]string{
+		PMsgId, Separator, message.MsgId, Delim,
+		PRequestType, Separator, message.Type, Delim}, "")
+	content := append([]byte(PContent + Separator), message.Content...)
+	return append(append([]byte(header), content...), []byte(End)...)
 }
 
 /**
