@@ -3,50 +3,50 @@ package skmq
 
 type MQConfig struct {
 	// The max retry times of message push to consumer
-	RetryTimes int
+	RetryTimes int `json:"retry_times"`
 
 	// Millisecond
-	ACKTimeout int
+	ACKTimeout int `json:"ack_timeout"`
 
 	// A rate limiter will distributes permits at a configurable rate (n/second)
-	Rate int
+	Rate int `json:"rate"`
 
-	ListenerHost string
+	ListenerHost string `json:"listener_host"`
 
-	ListenerPort string
+	ListenerPort string `json:"listener_port"`
 }
 
 type DBConfig struct {
 	// host:port
-	Address string
+	Address string `json:"address"`
 
 	// Optional(If open the password authentication)
-	Password string
+	Password string `json:"password"`
 
 	// Maximum number of idle connections in the pool.
-	MaxIdle int
+	MaxIdle int `json:"max_idle"`
 
 	// Maximum number of connections allocated by the pool at a given time.
 	// When zero, there is no limit on the number of connections in the pool.
-	MaxActive int
+	MaxActive int `json:"max_active"`
 
 	// Close connections after remaining idle for this duration. If the value
 	// is zero, then idle connections are not closed. Applications should set
 	// the timeout to a value less than the server's timeout.
-	IdleTimeout int
+	IdleTimeout int `json:"idle_timeout"`
 
 	// If MPending is true and the pool is at the MaxActive limit, then Get() waits
 	// for a connection to be returned to the pool before returning.
-	Wait bool
+	Wait bool `json:"wait"`
 
 	// Redis db index
-	DB int
+	DB int `json:"db"`
 
-	ReadTimeout int
+	ReadTimeout int `json:"read_timeout"`
 
-	WriteTimeout int
+	WriteTimeout int `json:"write_timeout"`
 
-	DialConnectTimeout int
+	DialConnectTimeout int `json:"dial_connect_timeout"`
 }
 
 var (
