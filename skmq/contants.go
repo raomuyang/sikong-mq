@@ -1,4 +1,4 @@
-package session
+package skmq
 
 import "time"
 
@@ -21,7 +21,7 @@ const (
  */
 const (
 	// recipients
-	KRecipientSet    = "sk-rec-set"
+	KRecipientSet    = "sk-rec-s"
 
 	// recent invoke information
 	KRecentMap       = "sk-recently"
@@ -30,7 +30,7 @@ const (
 	KMessageQueue    = "sk-msg-q"
 
 	// msg send time
-	KMessageMap      = "sk-msg-time-m"
+	KMessageMap      = "sk-msg-record"
 
 	// msg retry queue
 	KMessageRetryQueue = "sk-rty-q"
@@ -38,6 +38,8 @@ const (
 	KDeadLetterQueue = "sk-dl-q"
 
 	KAppSet = "sk-app-s"
+
+	KStatusLockSet = "sk-lock-s"
 )
 
 /**
@@ -59,6 +61,8 @@ const (
 	QueueMsg = "queue"
 
 	// Consumer reply
+	MPush		= "push"
+	MResponse 	= "resp"
 	MAckMsg     = "ack"
 	MRejectMsg  = "reject"
 	MArrivedMsg = "arrived"
@@ -85,5 +89,6 @@ const (
 )
 
 const (
-	ConnectTimeOut = 5 * time.Second
+	ConnectTimeOut = time.Minute
+	RetrySleep = time.Minute
 )

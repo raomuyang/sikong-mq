@@ -1,4 +1,4 @@
-package session
+package skmq
 
 import (
 	"github.com/garyburd/redigo/redis"
@@ -6,11 +6,16 @@ import (
 	"strconv"
 	"fmt"
 	"strings"
+	"sync"
 )
 
 var (
-	Pool *redis.Pool
+	Pool      *redis.Pool
+	RdsLocker *RedisLocker
 )
+
+type RedisLocker struct {
+}
 
 func init() {
 	Pool = &redis.Pool{
@@ -223,10 +228,9 @@ func GetMessageInfo(msgId string) (*Message, error) {
 	if err != nil {
 		return nil, UnknownDBOperationException{"Get message info: " + err.Error()}
 	}
-	if len(base) == 0 {
+	if len(base) == 0 || base[0] == "" {
 		return nil, NoSuchMessage{MsgId: msgId}
 	}
-	fmt.Println("base:", base)
 	retried, err := strconv.Atoi(base[2])
 	if err != nil {
 		return nil, AttrTypeError{Type: "int", Value: base[2]}
@@ -244,6 +248,7 @@ func GetMessageInfo(msgId string) (*Message, error) {
 }
 
 func DeleteMessage(msgId string) error {
+	fmt.Println("Debug:", "delete message", msgId)
 	dbConn := Pool.Get()
 	_, err := dbConn.Do("DEL", msgId)
 	if err != nil {
@@ -286,6 +291,7 @@ func MessageEnqueue(message Message) error {
 		KContent, message.Content,
 		KRetried, message.Retried,
 		KStatus, message.Status)
+	fmt.Printf("Cache[Debug]: message enqueue, messageId: %s, %s: %s\n", message.MsgId, KAppId, message.AppID)
 	if err != nil {
 		return UnknownDBOperationException{Detail: "Set message exception: " + err.Error()}
 	}
@@ -298,44 +304,66 @@ func MessageEnqueue(message Message) error {
 	return nil
 }
 
-func MessageDequeue() (*Message, error) {
+/**
+	对于重试队列的出队列，当时间未达到重试时间时，函数会发生阻塞
+ */
+func MessageDequeue(queue string) (*Message, error) {
 	dbConn := Pool.Get()
-	result, err := redis.Strings(dbConn.Do("BRPOP", KMessageQueue, 30))
+	result, err := dbConn.Do("BRPOP", queue, 30)
 	if err != nil {
+		if strings.Contains(err.Error(), "nil") {
+			return nil, nil
+		}
 		return nil, UnknownDBOperationException{Detail: "Pop msgId from queue failed: " + err.Error()}
 	}
 
-	if len(result) < 2 {
+	if result == nil {
 		return nil, nil
 	}
-
-	msgId := result[1]
+	m, err:= redis.StringMap(result, err)
+	msgId := m[queue]
 	msg, err := GetMessageInfo(msgId)
 
 	if err != nil {
 		return nil, err
 	}
-	_, err = dbConn.Do("HMSET", KMessageMap, msgId, time.Now().Nanosecond())
-	if err != nil {
-		// rollback
-		_, err2 := dbConn.Do("RPUSH", KMessageQueue, msgId)
-		return nil, UnknownDBOperationException{
-			Detail: fmt.Sprintf("Add message id to set: %s/%s",
-				err.Error(), err2.Error())}
+
+	if strings.Compare(KMessageRetryQueue, queue) == 0 {
+
+		// sleep
+		lasttime, err := redis.Int(dbConn.Do("HGET", KMessageMap, msgId))
+		if err == nil && lasttime != 0 {
+			sleep := time.Now().UnixNano() - int64(lasttime) + int64(RetrySleep)
+			if sleep > 0 {
+				time.Sleep(time.Duration(sleep))
+			}
+		}
 	}
 
-	err = UpdateMessageStatus(msgId, MSending)
-	if err != nil {
-		return nil, err
+	if strings.Compare(KDeadLetterQueue, queue) != 0 {
+		_, err = dbConn.Do("HMSET", KMessageMap, msgId, time.Now().UnixNano())
+		if err != nil {
+			// rollback
+			_, err2 := dbConn.Do("RPUSH", queue, msgId)
+			return nil, UnknownDBOperationException{
+				Detail: fmt.Sprintf("Add message id to set: %s/%s",
+					err.Error(), err2.Error())}
+		}
+		err = UpdateMessageStatus(msgId, MSending)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return msg, nil
 }
 
+
 /**
 	信息重发次数递增
  */
-func MessageRetryUpdate(msgId string) (*Message, error) {
+func MessageEntryRetryQueue(msgId string) (*Message, error) {
+
 	msg, err := GetMessageInfo(msgId)
 	if err != nil {
 		return nil, err
@@ -349,6 +377,12 @@ func MessageRetryUpdate(msgId string) (*Message, error) {
 		return nil, UnknownDBOperationException{Detail: "Increasing failed: " + err.Error()}
 	}
 
+	_, err = dbConn.Do("HMSET", KMessageMap, msgId, time.Now().UnixNano())
+	if err != nil {
+		return nil, UnknownDBOperationException{
+			Detail: fmt.Sprintf("Add message id to set: %s/%s",
+				err.Error(), err.Error())}
+	}
 	_, err = dbConn.Do("LPUSH", KMessageRetryQueue, msgId)
 	if err != nil {
 		return nil, UnknownDBOperationException{Detail: "Message enqueue failed: " + err.Error()}
@@ -360,17 +394,45 @@ func MessageRetryUpdate(msgId string) (*Message, error) {
 /**
 	Dead letter enqueue
  */
-func DeadLettleEnqueue(msgId string) error {
-	err := UpdateMessageStatus(msgId, MDead)
+func DeadLetterEnqueue(msgId string) error {
+
+	dbConn := Pool.Get()
+	_, err := dbConn.Do("HDEL", KMessageMap, msgId)
+	fmt.Println("Debug", "HDEL", KMessageMap, msgId)
 	if err != nil {
+		return UnknownDBOperationException{Detail: "delete message record failed, " + err.Error()}
+	}
+
+	err = UpdateMessageStatus(msgId, MDead)
+	switch err.(type) {
+	case NoSuchMessage:
+		return nil
+	case nil:
+	default:
 		return err
 	}
 
-	_, err = Pool.Get().Do("LPUSH", KDeadLetterQueue, msgId)
+	_, err = dbConn.Do("LPUSH", KDeadLetterQueue, msgId)
 	if err != nil {
 		return UnknownDBOperationException{Detail: "dead Letter enqueue failed, " + err.Error()}
 	}
 	return nil
+}
+
+func MessagePostRecords() (map[string] int, error) {
+	dbConn := Pool.Get()
+	result, err := dbConn.Do("HGETALL", KMessageMap)
+	if err != nil {
+		return nil, UnknownDBOperationException{Detail: "get message post records failed, " + err.Error()}
+	}
+	if result == nil {
+		 return make(map[string]int, 0), nil
+	}
+	msgMap, err := redis.IntMap(result, err)
+	if err != nil {
+		return nil, UnknownDBOperationException{Detail: "convert result failed, " + err.Error()}
+	}
+	return msgMap, nil
 }
 
 func AddApplication(appId string) error  {
@@ -384,4 +446,43 @@ func AddApplication(appId string) error  {
 func GetApps() []string {
 	list, _ := redis.Strings(Pool.Get().Do("SMEMBERS", KAppSet))
 	return list
+}
+
+/**
+	非阻塞
+ */
+func (*RedisLocker) Lock(key string) (bool, error) {
+	var rwMutex sync.RWMutex
+
+	rwMutex.RLock()
+	dbConn := Pool.Get()
+	res, err := redis.Bool(dbConn.Do("SISMEMBER",  KStatusLockSet, key))
+	rwMutex.RUnlock()
+	if err != nil {
+		return false, UnknownDBOperationException{Detail: "get lock status failed, " + err.Error()}
+	}
+
+	if res {
+		return false, nil
+	}
+	rwMutex.Lock()
+	_, err = dbConn.Do("SADD", KStatusLockSet, key)
+	rwMutex.Unlock()
+	if err != nil {
+		return false, UnknownDBOperationException{Detail: "lock failed, " + err.Error()}
+	}
+	return true, nil
+}
+
+func (*RedisLocker) Unlock(key string) error {
+	dbConn := Pool.Get()
+	var mutex sync.Mutex
+	mutex.Lock()
+	defer mutex.Unlock()
+	_, err := dbConn.Do("SREM",  KStatusLockSet, key)
+	if err != nil {
+		return UnknownDBOperationException{Detail: "Unlock " + err.Error()}
+	}
+
+	return nil
 }
