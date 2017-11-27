@@ -130,6 +130,7 @@ func FindRecipients(applicationId string) ([]*RecipientInfo, error) {
 	dbConn := Pool.Get()
 	set := KRecipientSet + "/" + applicationId
 	rep, err := redis.Strings(dbConn.Do("SMEMBERS", set))
+	fmt.Println("Debug ", rep)
 	if err != nil {
 		return nil, UnknownDBOperationException{Detail: err.Error()}
 	}

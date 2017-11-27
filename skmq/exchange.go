@@ -46,12 +46,12 @@ func CheckRecipientsAvailable() {
 		for r := range recipients {
 			recipient := recipients[r]
 			address := fmt.Sprintf("%s:%s", recipient.Host, recipient.Port)
-			fmt.Println("Heartbeat:", address)
 			connect, err := net.DialTimeout("tcp", address, ConnectTimeOut)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Printf("Heartbeat: %s, %s\n", address, err.Error())
 			}
 			result := Heartbeat(connect)
+			fmt.Printf("Heartbeat: %s, ack: %s\n", address, result)
 			if !result {
 				recipient.Status = Lost
 				err = UpdateRecipient(*recipient)
@@ -92,6 +92,7 @@ func Heartbeat(connect net.Conn) bool {
 	发送一个8字节的心跳包
  */
 func ReplyHeartbeat(conn net.Conn) error {
+	defer conn.SetWriteDeadline(time.Time{})
 	content := []byte(PONG)
 	conn.SetWriteDeadline(time.Now().Add(ConnectTimeOut))
 	return SendMessage(conn, content)
@@ -116,7 +117,7 @@ func RecipientBalance(appId string) (*RecipientInfo, error) {
 		if strings.Compare(Alive, r.Status) != 0 {
 			continue
 		}
-		weight := r.Weight
+		weight := r.Weight + 1
 		recent := recently[r.RecipientId]
 		v := float64(weight) / float64(recent)
 		if v > value {
@@ -143,11 +144,14 @@ func DeliveryMessage(appId string, content []byte) (net.Conn, error) {
 			break
 		}
 		address := recipient.Host + ":" + recipient.Port
-		fmt.Println("Address ", address)
+		fmt.Println("Delivery target:", address)
 		conn, err = net.DialTimeout("tcp", address, ConnectTimeOut)
 		if err != nil {
 			RemoveLostRecipient(*recipient)
+			conn = nil
 		}
+		break
+
 	}
 
 	if conn == nil {
