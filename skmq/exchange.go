@@ -23,6 +23,7 @@ func processRejectedMsg(msgId string) error {
 		// TODO log
 	case MessageDead:
 		// TODO log
+		DeadLetterEnqueue(msgId)
 		return nil
 	case nil:
 		return nil

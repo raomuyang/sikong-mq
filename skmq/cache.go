@@ -223,7 +223,7 @@ func GetMessageInfo(msgId string) (*Message, error) {
 	if err != nil {
 		return nil, UnknownDBOperationException{"Get message info: " + err.Error()}
 	}
-	if len(base) == 0 {
+	if len(base) == 0 || base[0] == "" {
 		return nil, NoSuchMessage{MsgId: msgId}
 	}
 	retried, err := strconv.Atoi(base[2])
@@ -314,7 +314,6 @@ func MessageDequeue(queue string) (*Message, error) {
 		return nil, nil
 	}
 	m, err:= redis.StringMap(result, err)
-
 	msgId := m[queue]
 	msg, err := GetMessageInfo(msgId)
 
@@ -327,24 +326,26 @@ func MessageDequeue(queue string) (*Message, error) {
 		// sleep
 		lasttime, err := redis.Int(dbConn.Do("HGET", KMessageMap, msgId))
 		if err == nil && lasttime != 0 {
-			sleep := time.Now().Nanosecond() - lasttime + int(RetrySleep)
+			sleep := time.Now().UnixNano() - int64(lasttime) + int64(RetrySleep)
 			if sleep > 0 {
 				time.Sleep(time.Duration(sleep))
 			}
 		}
 	}
 
-	_, err = dbConn.Do("HMSET", KMessageMap, msgId, time.Now().Nanosecond())
-	if err != nil {
-		// rollback
-		_, err2 := dbConn.Do("RPUSH", queue, msgId)
-		return nil, UnknownDBOperationException{
-			Detail: fmt.Sprintf("Add message id to set: %s/%s",
-				err.Error(), err2.Error())}
-	}
-	err = UpdateMessageStatus(msgId, MSending)
-	if err != nil {
-		return nil, err
+	if strings.Compare(KDeadLetterQueue, queue) != 0 {
+		_, err = dbConn.Do("HMSET", KMessageMap, msgId, time.Now().UnixNano())
+		if err != nil {
+			// rollback
+			_, err2 := dbConn.Do("RPUSH", queue, msgId)
+			return nil, UnknownDBOperationException{
+				Detail: fmt.Sprintf("Add message id to set: %s/%s",
+					err.Error(), err2.Error())}
+		}
+		err = UpdateMessageStatus(msgId, MSending)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return msg, nil
@@ -368,7 +369,7 @@ func MessageEntryRetryQueue(msgId string) (*Message, error) {
 		return nil, UnknownDBOperationException{Detail: "Increasing failed: " + err.Error()}
 	}
 
-	_, err = dbConn.Do("HMSET", KMessageMap, msgId, time.Now().Nanosecond())
+	_, err = dbConn.Do("HMSET", KMessageMap, msgId, time.Now().UnixNano())
 	if err != nil {
 		return nil, UnknownDBOperationException{
 			Detail: fmt.Sprintf("Add message id to set: %s/%s",
@@ -385,17 +386,39 @@ func MessageEntryRetryQueue(msgId string) (*Message, error) {
 /**
 	Dead letter enqueue
  */
-func DeadLettleEnqueue(msgId string) error {
+func DeadLetterEnqueue(msgId string) error {
 	err := UpdateMessageStatus(msgId, MDead)
 	if err != nil {
 		return err
 	}
 
-	_, err = Pool.Get().Do("LPUSH", KDeadLetterQueue, msgId)
+	dbConn := Pool.Get()
+	_, err = dbConn.Do("HDEL", KMessageMap, msgId)
+	if err != nil {
+		return UnknownDBOperationException{Detail: "delete message record failed, " + err.Error()}
+	}
+
+	_, err = dbConn.Do("LPUSH", KDeadLetterQueue, msgId)
 	if err != nil {
 		return UnknownDBOperationException{Detail: "dead Letter enqueue failed, " + err.Error()}
 	}
 	return nil
+}
+
+func MessagePostRecords() (map[string] int, error) {
+	dbConn := Pool.Get()
+	result, err := dbConn.Do("HGETALL", KMessageMap)
+	if err != nil {
+		return nil, UnknownDBOperationException{Detail: "get message post records failed, " + err.Error()}
+	}
+	if result == nil {
+		 return make(map[string]int, 0), nil
+	}
+	msgMap, err := redis.IntMap(result, err)
+	if err != nil {
+		return nil, UnknownDBOperationException{Detail: "convert result failed, " + err.Error()}
+	}
+	return msgMap, nil
 }
 
 func AddApplication(appId string) error  {

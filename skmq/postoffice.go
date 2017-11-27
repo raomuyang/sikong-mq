@@ -92,6 +92,9 @@ func heartbeatCyclically()  {
 
 func schedule()  {
 	sendQueue := make(chan Message, SendBuf)
+	dlQueue := make(chan Message, SendBuf)
+	timeoutQueue := make(chan string, SendBuf)
+
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -125,10 +128,11 @@ func schedule()  {
 			msg, err := MessageDequeue(KMessageRetryQueue)
 			if err != nil {
 				fmt.Println("Scheduler: retry-msg dequeue error, " + err.Error())
-				time.Sleep(30 * time.Second)
+				time.Sleep(15 * time.Second)
 				continue
 			}
 			if msg == nil {
+				time.Sleep(30 * time.Second)
 				continue
 			}
 			sendQueue <- *msg
@@ -136,19 +140,93 @@ func schedule()  {
 	}()
 
 	go func() {
+		// dl-msg dequeue
+		for {
+			if stop {
+				close(dlQueue)
+				break
+			}
+			msg, err := MessageDequeue(KDeadLetterQueue)
+			if err != nil {
+				fmt.Println("Scheduler: dl-msg dequeue error, " + err.Error())
+				time.Sleep(30 * time.Second)
+				continue
+			}
+			if msg == nil {
+				time.Sleep(60 * time.Second)
+				continue
+			}
+			dlQueue <- *msg
+		}
+	}()
+
+	go func() {
+		// scan ack timeout
+		for {
+			if stop {
+				close(timeoutQueue)
+				break
+			}
+
+			records, err := MessagePostRecords()
+			if err != nil {
+				fmt.Println("Scheduler: get records error, " + err.Error())
+				time.Sleep(30 * time.Second)
+				continue
+			}
+			for id := range records {
+				diff := (time.Now().UnixNano() - int64(records[id])) - int64(Configuration.ACKTimeout) * int64(time.Second)
+				if diff > 0 || diff < int64(time.Second) {
+					timeoutQueue <- id
+				}
+			}
+			time.Sleep(time.Minute)
+		}
+	}()
+
+	go func() {
 		// msg delivery
+		quit := false
 		for  {
-			msg, ok := <-sendQueue
-			if !ok {
+			if quit {
 				fmt.Println("Scheduler: stop.")
 				break
 			}
-			delivery(msg)
+
+			select {
+			case msg, ok := <-sendQueue:
+				if !ok {
+					quit = true
+					break
+				}
+				delivery(msg)
+			case msg, ok := <-dlQueue:
+				if ok {
+					processDeadLetter(msg)
+				}
+			case msgId, ok := <- timeoutQueue:
+				if ok {
+					_, err := MessageEntryRetryQueue(msgId)
+					switch err.(type) {
+					case MessageDead:
+						DeadLetterEnqueue(msgId)
+					case nil:
+
+					default:
+						fmt.Println("Scheduler: " + err.Error())
+					}
+				}
+			default:
+			}
 		}
 	}()
 
 	wg.Wait()
 	close(sendQueue)
+}
+
+func processDeadLetter(message Message) {
+	DeleteMessage(message.MsgId)
 }
 
 func delivery(message Message) {
@@ -244,6 +322,8 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 				if err != nil {
 					status = MError
 					disconnect = false
+					fmt.Printf("--arrived ack error: %s/%s, %s \n",
+						message.AppID, message.MsgId, err.Error())
 				}
 				out <- Response{Status: status, Disconnect: disconnect}
 			case MAckMsg:
@@ -251,6 +331,8 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 				status := MAck
 				if err != nil {
 					status = MError
+					fmt.Printf("--message ack error: %s/%s, %s \n",
+						message.AppID, message.MsgId, err.Error())
 				}
 				out <- Response{Status: status}
 			case MRejectMsg:
@@ -260,6 +342,8 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 				if err != nil {
 					status = MError
 					disconnect = false
+					fmt.Printf("--reject ack error: %s/%s, %s \n",
+						message.AppID, message.MsgId, err.Error())
 				}
 				out <- Response{Status: status, Disconnect: disconnect}
 			default:
@@ -372,7 +456,7 @@ func ack(message Message) error {
 	Recipient reject
  */
 func reject(message Message) error {
-	return nil
+	return processRejectedMsg(message.MsgId)
 }
 
 func arrive(message Message) error {
