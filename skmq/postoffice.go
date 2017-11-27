@@ -468,9 +468,9 @@ func saveMessage(message Message) (string, error) {
 	switch err.(type) {
 	case MsgAlreadyExists:
 		return err.Error(), nil
+	case nil:
+		return "Message enqueue successful", nil
 	default:
 		return "Message enqueue failed.", err
 	}
-	return "Message enqueue successful", nil
-
 }
