@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	Pool *redis.Pool
-	L *RedisLocker
+	Pool      *redis.Pool
+	RdsLocker *RedisLocker
 )
 
 type RedisLocker struct {
@@ -285,6 +285,12 @@ func MessageEnqueue(message Message) error {
 		return MsgAlreadyExists{MsgId: message.MsgId, Status: result}
 	}
 	_, err = dbConn.Do("HMSET",
+		message.MsgId,
+		KAppId, message.AppID,
+		KContent, message.Content,
+		KRetried, message.Retried,
+		KStatus, message.Status)
+	fmt.Println("Debug", "HMSET",
 		message.MsgId,
 		KAppId, message.AppID,
 		KContent, message.Content,

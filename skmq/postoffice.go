@@ -196,14 +196,14 @@ func scanTimeoutTasks() {
 
 		records, err := MessagePostRecords()
 		if err != nil {
-			fmt.Println("Scheduler: get records error, " + err.Error())
+			fmt.Println("Scanner: get records error, " + err.Error())
 			time.Sleep(30 * time.Second)
 			continue
 		}
 		for msgId := range records {
-			diff := (time.Now().UnixNano() - int64(records[msgId])) - int64(Configuration.ACKTimeout)*int64(time.Second)
-			fmt.Println("Debug", diff)
+			diff := (time.Now().UnixNano() - int64(records[msgId])) - int64(Configuration.ACKTimeout)*int64(time.Millisecond)
 			if diff > 0 || -diff < int64(time.Second) {
+
 				_, err := MessageEntryRetryQueue(msgId)
 				switch err.(type) {
 				case NoSuchMessage:
@@ -310,7 +310,7 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 			fmt.Printf("Handler: handle message %s/%s[%s] \n", message.AppID, message.MsgId, message.Type)
 			switch message.Type {
 			case RegisterMsg:
-				err := processRegisterMsg(message)
+				err := recipientRegister(message)
 				status := MAck
 				var content = "Recipient register successful."
 				if err != nil {
@@ -447,7 +447,7 @@ func EncodeMessage(message Message) []byte {
 /**
 	Recipient register
  */
-func processRegisterMsg(message Message) error {
+func recipientRegister(message Message) error {
 	consumer := RecipientInfo{}
 	err := json.Unmarshal(message.Content, &consumer)
 	if err != nil {
@@ -469,6 +469,14 @@ func ack(message Message) error {
  */
 func reject(message Message) error {
 	return processRejectedMsg(message.MsgId)
+}
+
+/**
+	Recipient process error, entry dl-queue
+	TODO error log
+ */
+func msgError(message Message) error {
+	return DeadLetterEnqueue(message.MsgId)
 }
 
 func arrive(message Message) error {
