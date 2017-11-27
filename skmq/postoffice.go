@@ -43,7 +43,7 @@ const (
 	SendBuf    = 1 << 5
 )
 
-var stop bool = false
+var stop = false
 
 func OpenServer() {
 	InitDBConfig(*DBConfiguration)
