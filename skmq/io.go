@@ -4,6 +4,7 @@ import (
 	"net"
 	"bufio"
 	"io"
+	"fmt"
 )
 
 const (
@@ -46,11 +47,11 @@ func ReadStream(connect net.Conn) (<-chan []byte) {
 		for {
 			read, err := reader.Read(buf)
 			if err != nil {
-				if err == io.EOF {
-					break
-				} else {
-					panic(err)
+				if err != io.EOF {
+					// TODO log
+					fmt.Println(err)
 				}
+				break
 			}
 			input <- buf[:read]
 		}

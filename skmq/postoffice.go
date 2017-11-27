@@ -223,13 +223,14 @@ func processDeadLetter(message Message) {
 
 func delivery(message Message) {
 	message.Type = MPush
-	defer func() {
-		e := recover()
-		if e != nil {
-			fmt.Printf("Delivery: panic, %s \n", e)
-		}
-	}()
 	go func() {
+		defer func() {
+			e := recover()
+			if e != nil {
+				fmt.Printf("Delivery: panic, %s \n", e)
+			}
+		}()
+
 		fmt.Printf("Delivery: delivery message %s/%s \n", message.AppID, message.MsgId)
 		conn, err := DeliveryMessage(message.AppID, EncodeMessage(message))
 		if err != nil {
@@ -237,7 +238,7 @@ func delivery(message Message) {
 			return
 		}
 		conn.SetReadDeadline(time.Now().Add(ConnectTimeOut))
-		reply(conn, handleMessage(DecodeMessage(ReadStream(conn))))
+		reply(conn, true, handleMessage(DecodeMessage(ReadStream(conn))))
 	}()
 }
 
@@ -251,19 +252,20 @@ func receive(connect net.Conn) {
 				fmt.Printf("Error: %v\n", p)
 			}
 		}()
-		reply(connect, handleMessage(DecodeMessage(ReadStream(connect))))
+		reply(connect, false, handleMessage(DecodeMessage(ReadStream(connect))))
 	}()
 }
 
-func reply(connect net.Conn, repChan <-chan Response) {
+func reply(connect net.Conn, proactive bool, repChan <-chan Response) {
 	disconnect := false
 	for {
 		response, ok := <-repChan
 		if !ok {
 			fmt.Println("Reply: message handler close the channel")
+			disconnect = true
 			break
 		}
-
+		fmt.Printf("Reply: debug %v\n", response)
 		if strings.Compare(response.Status, PONG) == 0 {
 			ReplyHeartbeat(connect)
 			fmt.Println("Reply: PONG")
@@ -280,11 +282,16 @@ func reply(connect net.Conn, repChan <-chan Response) {
 			// TODO log
 			fmt.Println("Reply: " + err.Error())
 		}
+		if proactive {
+			disconnect = true
+			break
+		}
 
 		disconnect = response.Disconnect || disconnect
 	}
 
 	if disconnect {
+		fmt.Println("Close connect: " + connect.RemoteAddr().String())
 		err := connect.Close()
 		if err != nil {
 			// TODO log
