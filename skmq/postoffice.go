@@ -236,6 +236,7 @@ func delivery(message Message) {
 			fmt.Println("Delivery: error, " + err.Error())
 			return
 		}
+		conn.SetReadDeadline(time.Now().Add(ConnectTimeOut))
 		reply(conn, handleMessage(DecodeMessage(ReadStream(conn))))
 	}()
 }
@@ -289,6 +290,8 @@ func reply(connect net.Conn, repChan <-chan Response) {
 			// TODO log
 			fmt.Println("Reply: close connect failed, " + err.Error())
 		}
+	} else {
+		connect.SetReadDeadline(time.Time{})
 	}
 
 }
