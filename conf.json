@@ -1,0 +1,7 @@
+{
+  "retry_times": 5,
+  "ack_timeout": 60000,
+  "rate": 1000,
+  "listener_host": "127.0.0.1",
+  "listener_port": "1734"
+}
