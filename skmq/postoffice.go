@@ -270,6 +270,12 @@ func reply(connect net.Conn, repChan <-chan Response) {
 			break
 		}
 
+		if strings.Compare(response.Status, PONG) == 0 {
+			ReplyHeartbeat(connect)
+			fmt.Println("Reply: PONG")
+			continue
+		}
+
 		rs, err := json.Marshal(response)
 		if err != nil {
 			panic(errors.New("reply: json marshal struct failed"))
@@ -346,6 +352,8 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 						message.AppID, message.MsgId, err.Error())
 				}
 				out <- Response{Status: status, Disconnect: disconnect}
+			case PING:
+				out <- Response{Status: PONG}
 			default:
 				content, err := saveMessage(message)
 				status := MAck
@@ -386,8 +394,14 @@ func DecodeMessage(input <-chan []byte) <-chan Message {
 				if len(sub) > 0 {
 					spIndex := bytes.Index(sub, []byte(Separator))
 					if spIndex < 0 {
-						fmt.Println("MError: param separator not found")
-						panic(StreamReadError{sub, "param separator not found"})
+						// 心跳信息
+						if bytes.Compare([]byte(PING), sub) == 0 {
+							msgChan <- Message{Type: PING}
+							continue
+						} else {
+							fmt.Println("MError: param separator not found")
+							panic(StreamReadError{sub, "param separator not found"})
+						}
 					}
 
 					key := fmt.Sprintf("%s", sub[:spIndex])
