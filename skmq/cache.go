@@ -6,11 +6,16 @@ import (
 	"strconv"
 	"fmt"
 	"strings"
+	"sync"
 )
 
 var (
 	Pool *redis.Pool
+	L *RedisLocker
 )
+
+type RedisLocker struct {
+}
 
 func init() {
 	Pool = &redis.Pool{
@@ -130,7 +135,6 @@ func FindRecipients(applicationId string) ([]*RecipientInfo, error) {
 	dbConn := Pool.Get()
 	set := KRecipientSet + "/" + applicationId
 	rep, err := redis.Strings(dbConn.Do("SMEMBERS", set))
-	fmt.Println("Debug ", rep)
 	if err != nil {
 		return nil, UnknownDBOperationException{Detail: err.Error()}
 	}
@@ -357,6 +361,7 @@ func MessageDequeue(queue string) (*Message, error) {
 	信息重发次数递增
  */
 func MessageEntryRetryQueue(msgId string) (*Message, error) {
+
 	msg, err := GetMessageInfo(msgId)
 	if err != nil {
 		return nil, err
@@ -388,15 +393,21 @@ func MessageEntryRetryQueue(msgId string) (*Message, error) {
 	Dead letter enqueue
  */
 func DeadLetterEnqueue(msgId string) error {
-	err := UpdateMessageStatus(msgId, MDead)
-	if err != nil {
-		return err
-	}
 
 	dbConn := Pool.Get()
-	_, err = dbConn.Do("HDEL", KMessageMap, msgId)
+	_, err := dbConn.Do("HDEL", KMessageMap, msgId)
+	fmt.Println("Debug", "HDEL", KMessageMap, msgId)
 	if err != nil {
 		return UnknownDBOperationException{Detail: "delete message record failed, " + err.Error()}
+	}
+
+	err = UpdateMessageStatus(msgId, MDead)
+	switch err.(type) {
+	case NoSuchMessage:
+		return nil
+	case nil:
+	default:
+		return err
 	}
 
 	_, err = dbConn.Do("LPUSH", KDeadLetterQueue, msgId)
@@ -433,4 +444,43 @@ func AddApplication(appId string) error  {
 func GetApps() []string {
 	list, _ := redis.Strings(Pool.Get().Do("SMEMBERS", KAppSet))
 	return list
+}
+
+/**
+	非阻塞
+ */
+func (*RedisLocker) Lock(key string) (bool, error) {
+	var rwMutex sync.RWMutex
+
+	rwMutex.RLock()
+	dbConn := Pool.Get()
+	res, err := redis.Bool(dbConn.Do("SISMEMBER",  KStatusLockSet, key))
+	rwMutex.RUnlock()
+	if err != nil {
+		return false, UnknownDBOperationException{Detail: "get lock status failed, " + err.Error()}
+	}
+
+	if res {
+		return false, nil
+	}
+	rwMutex.Lock()
+	_, err = dbConn.Do("SADD", KStatusLockSet, key)
+	rwMutex.Unlock()
+	if err != nil {
+		return false, UnknownDBOperationException{Detail: "lock failed, " + err.Error()}
+	}
+	return true, nil
+}
+
+func (*RedisLocker) Unlock(key string) error {
+	dbConn := Pool.Get()
+	var mutex sync.Mutex
+	mutex.Lock()
+	defer mutex.Unlock()
+	_, err := dbConn.Do("SREM",  KStatusLockSet, key)
+	if err != nil {
+		return UnknownDBOperationException{Detail: "Unlock " + err.Error()}
+	}
+
+	return nil
 }
