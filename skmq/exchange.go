@@ -51,7 +51,7 @@ func CheckRecipientsAvailable() {
 				fmt.Printf("Heartbeat: %s, %s\n", address, err.Error())
 			}
 			result := Heartbeat(connect)
-			fmt.Printf("Heartbeat: %s, ack: %s\n", address, result)
+			fmt.Printf("Heartbeat: %s, ack: %v\n", address, result)
 			if !result {
 				recipient.Status = Lost
 				err = UpdateRecipient(*recipient)

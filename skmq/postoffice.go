@@ -12,12 +12,12 @@ import (
 )
 
 type RecipientInfo struct {
-	RecipientId string `json:"id"`
+	RecipientId   string `json:"id"`
 	ApplicationId string `json:"app_id"`
-	Host string `json:"host"`
-	Port string `json:"port"`
-	Status string `json:"-"`
-	Weight int `json:"weight"`
+	Host          string `json:"host"`
+	Port          string `json:"port"`
+	Status        string `json:"-"`
+	Weight        int    `json:"weight"`
 }
 
 /**
@@ -33,9 +33,9 @@ type Message struct {
 }
 
 type Response struct {
-	Status  string `json:"status"`
-	Content string `json:"content"`
-	Disconnect bool `json:"-"`
+	Status     string `json:"status"`
+	Content    string `json:"content"`
+	Disconnect bool   `json:"-"`
 }
 
 type Result struct {
@@ -46,7 +46,7 @@ type Result struct {
 
 const (
 	ProcessBuf = 8
-	SendBuf = 1 << 5
+	SendBuf    = 1 << 5
 )
 
 var stop bool = false
@@ -57,7 +57,8 @@ func OpenServer() {
 	fmt.Println("Server: open message queue server, listen " + laddr)
 
 	go schedule()
-	heartbeatCyclically()
+	go scanTimeoutTasks()
+	go heartbeatCyclically()
 
 	listener, err := net.Listen("tcp", laddr)
 	if err != nil {
@@ -82,18 +83,14 @@ func StopServer() {
 	stop = true
 }
 
-
-func heartbeatCyclically()  {
-	go func() {
-		CheckRecipientsAvailable()
-		time.Sleep(time.Minute)
-	}()
+func heartbeatCyclically() {
+	CheckRecipientsAvailable()
+	time.Sleep(time.Minute)
 }
 
-func schedule()  {
+func schedule() {
 	sendQueue := make(chan Message, SendBuf)
 	dlQueue := make(chan Message, SendBuf)
-	timeoutQueue := make(chan string, SendBuf)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -161,33 +158,9 @@ func schedule()  {
 	}()
 
 	go func() {
-		// scan ack timeout
-		for {
-			if stop {
-				close(timeoutQueue)
-				break
-			}
-
-			records, err := MessagePostRecords()
-			if err != nil {
-				fmt.Println("Scheduler: get records error, " + err.Error())
-				time.Sleep(30 * time.Second)
-				continue
-			}
-			for id := range records {
-				diff := (time.Now().UnixNano() - int64(records[id])) - int64(Configuration.ACKTimeout) * int64(time.Second)
-				if diff > 0 || diff < int64(time.Second) {
-					timeoutQueue <- id
-				}
-			}
-			time.Sleep(time.Minute)
-		}
-	}()
-
-	go func() {
 		// msg delivery
 		quit := false
-		for  {
+		for {
 			if quit {
 				fmt.Println("Scheduler: stop.")
 				break
@@ -204,18 +177,6 @@ func schedule()  {
 				if ok {
 					processDeadLetter(msg)
 				}
-			case msgId, ok := <- timeoutQueue:
-				if ok {
-					_, err := MessageEntryRetryQueue(msgId)
-					switch err.(type) {
-					case MessageDead:
-						DeadLetterEnqueue(msgId)
-					case nil:
-
-					default:
-						fmt.Println("Scheduler: " + err.Error())
-					}
-				}
 			default:
 			}
 		}
@@ -223,6 +184,43 @@ func schedule()  {
 
 	wg.Wait()
 	close(sendQueue)
+}
+
+// scan ack timeout
+func scanTimeoutTasks() {
+
+	for {
+		if stop {
+			break
+		}
+
+		records, err := MessagePostRecords()
+		if err != nil {
+			fmt.Println("Scheduler: get records error, " + err.Error())
+			time.Sleep(30 * time.Second)
+			continue
+		}
+		for msgId := range records {
+			diff := (time.Now().UnixNano() - int64(records[msgId])) - int64(Configuration.ACKTimeout)*int64(time.Second)
+			fmt.Println("Debug", diff)
+			if diff > 0 || -diff < int64(time.Second) {
+				_, err := MessageEntryRetryQueue(msgId)
+				switch err.(type) {
+				case NoSuchMessage:
+					fmt.Println("Scheduler: warning, " + err.Error())
+					DeadLetterEnqueue(msgId)
+				case MessageDead:
+					fmt.Println("Scheduler: " + err.Error())
+					DeadLetterEnqueue(msgId)
+				case nil:
+					fmt.Printf("Scheduler: %s will be retried \n", msgId)
+				default:
+					fmt.Println("Scheduler: " + err.Error())
+				}
+			}
+		}
+		time.Sleep(time.Minute)
+	}
 }
 
 func processDeadLetter(message Message) {
@@ -333,6 +331,7 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 				}
 				out <- Response{Status: status, Disconnect: disconnect}
 			case MAckMsg:
+				fmt.Println("Handler: message ack, " + message.MsgId)
 				err := ack(message)
 				status := MAck
 				if err != nil {
@@ -368,7 +367,6 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 	}()
 	return out
 }
-
 
 /**
 	这里使用四个换行（\r\n\r\n）来间隔一段消息解决tcp消息粘包问题，
@@ -437,12 +435,12 @@ func DecodeMessage(input <-chan []byte) <-chan Message {
 	return msgChan
 }
 
-func EncodeMessage(message Message) []byte{
+func EncodeMessage(message Message) []byte {
 	header := strings.Join([]string{
 		PAppID, Separator, message.AppID, Delim,
 		PMsgId, Separator, message.MsgId, Delim,
 		PRequestType, Separator, message.Type, Delim}, "")
-	content := append([]byte(PContent + Separator), message.Content...)
+	content := append([]byte(PContent+Separator), message.Content...)
 	return append(append([]byte(header), content...), []byte(End)...)
 }
 
