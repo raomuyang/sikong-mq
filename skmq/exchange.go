@@ -69,6 +69,8 @@ func CheckRecipientsAvailable() {
 	若超时或返回值不正确，则返回false
  */
 func Heartbeat(connect net.Conn) bool {
+	defer connect.SetDeadline(time.Time{})
+
 	connect.SetWriteDeadline(time.Now().Add(ConnectTimeOut))
 	err := SendMessage(connect, []byte(PING))
 	if err != nil {
