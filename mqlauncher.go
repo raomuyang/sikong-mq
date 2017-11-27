@@ -22,15 +22,19 @@ func main() {
 	}
 	defer confFile.Close()
 	loadConf(confFile, skmq.Configuration)
+	res, _ := json.Marshal(skmq.Configuration)
+	fmt.Printf("config   : %s\n", res)
 
 	dbConfFile, err := os.Open(*dbConfPath)
 	if err != nil {
 		fmt.Println("The redis configuration file was not found, use default config:")
-		res, _ := json.Marshal(*skmq.DBConfiguration)
+		res, _ := json.Marshal(skmq.DBConfiguration)
 		fmt.Printf("%s\n", res)
 	} else {
 		defer dbConfFile.Close()
 		loadConf(dbConfFile, skmq.DBConfiguration)
+		res, _ := json.Marshal(skmq.DBConfiguration)
+		fmt.Printf("db config: %s\n", res)
 	}
 
 	skmq.OpenServer()
