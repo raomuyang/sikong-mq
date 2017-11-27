@@ -394,6 +394,12 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 func DecodeMessage(input <-chan []byte) <-chan Message {
 	msgChan := make(chan Message, ProcessBuf)
 	go func() {
+		defer func() {
+			p := recover()
+			if p != nil {
+				fmt.Println("Decode message error:", p)
+			}
+		}()
 		message := Message{Status: MPending, Retried: 0}
 		var line []byte
 		for {
