@@ -61,6 +61,8 @@ const (
 	QueueMsg = "queue"
 
 	// Consumer reply
+	MPush		= "push"
+	MResponse 	= "resp"
 	MAckMsg     = "ack"
 	MRejectMsg  = "reject"
 	MArrivedMsg = "arrived"

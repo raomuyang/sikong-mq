@@ -248,6 +248,7 @@ func GetMessageInfo(msgId string) (*Message, error) {
 }
 
 func DeleteMessage(msgId string) error {
+	fmt.Println("Debug:", "delete message", msgId)
 	dbConn := Pool.Get()
 	_, err := dbConn.Do("DEL", msgId)
 	if err != nil {
@@ -290,12 +291,7 @@ func MessageEnqueue(message Message) error {
 		KContent, message.Content,
 		KRetried, message.Retried,
 		KStatus, message.Status)
-	fmt.Println("Debug", "HMSET",
-		message.MsgId,
-		KAppId, message.AppID,
-		KContent, message.Content,
-		KRetried, message.Retried,
-		KStatus, message.Status)
+	fmt.Printf("Cache[Debug]: message enqueue, messageId: %s, %s: %s\n", message.MsgId, KAppId, message.AppID)
 	if err != nil {
 		return UnknownDBOperationException{Detail: "Set message exception: " + err.Error()}
 	}

@@ -38,12 +38,6 @@ type Response struct {
 	Disconnect bool   `json:"-"`
 }
 
-type Result struct {
-	MsgId        string
-	Err          error
-	FinishedTime time.Time
-}
-
 const (
 	ProcessBuf = 8
 	SendBuf    = 1 << 5
@@ -228,6 +222,7 @@ func processDeadLetter(message Message) {
 }
 
 func delivery(message Message) {
+	message.Type = MPush
 	defer func() {
 		e := recover()
 		if e != nil {
@@ -274,11 +269,11 @@ func reply(connect net.Conn, repChan <-chan Response) {
 			continue
 		}
 
-		rs, err := json.Marshal(response)
+		content, err := json.Marshal(response)
 		if err != nil {
 			panic(errors.New("reply: json marshal struct failed"))
 		}
-		err = SendMessage(connect, rs)
+		err = SendMessage(connect, EncodeMessage(Message{Content: content, Type: MResponse}))
 
 		if err != nil {
 			// TODO log
@@ -310,6 +305,7 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 			fmt.Printf("Handler: handle message %s/%s[%s] \n", message.AppID, message.MsgId, message.Type)
 			switch message.Type {
 			case RegisterMsg:
+				fmt.Println("Handler: mesage rejected: " + message.MsgId)
 				err := recipientRegister(message)
 				status := MAck
 				var content = "Recipient register successful."
@@ -320,6 +316,7 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 				}
 				out <- Response{Status: status, Content: content}
 			case MArrivedMsg:
+				fmt.Println("Handler: mesage deliveried successfully: " + message.MsgId)
 				disconnect := true
 				err := arrive(message)
 				status := MAck
@@ -340,6 +337,17 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 						message.AppID, message.MsgId, err.Error())
 				}
 				out <- Response{Status: status}
+			case MError:
+				err := msgError(message)
+				status := MAck
+				disconnect := true
+				if err != nil {
+					status = MError
+					disconnect = false
+					fmt.Printf("--process error ack error: %s/%s, %s \n",
+						message.AppID, message.MsgId, err.Error())
+				}
+				out <- Response{Status: status, Disconnect: disconnect}
 			case MRejectMsg:
 				err := reject(message)
 				status := MAck
@@ -354,6 +362,7 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 			case PING:
 				out <- Response{Status: PONG}
 			default:
+				fmt.Println("Save message " + message.MsgId)
 				content, err := saveMessage(message)
 				status := MAck
 				if err != nil {
@@ -436,10 +445,15 @@ func DecodeMessage(input <-chan []byte) <-chan Message {
 }
 
 func EncodeMessage(message Message) []byte {
-	header := strings.Join([]string{
-		PAppID, Separator, message.AppID, Delim,
-		PMsgId, Separator, message.MsgId, Delim,
-		PRequestType, Separator, message.Type, Delim}, "")
+	list := []string{
+		PRequestType, Separator, message.Type, Delim}
+	if len(message.AppID) > 0 {
+		list = append(list, PAppID, Separator, message.AppID, Delim)
+	}
+	if len(message.MsgId) > 0 {
+		list = append(list, PMsgId, Separator, message.MsgId, Delim)
+	}
+	header := strings.Join(list, "")
 	content := append([]byte(PContent+Separator), message.Content...)
 	return append(append([]byte(header), content...), []byte(End)...)
 }
