@@ -245,10 +245,10 @@ func receive(connect net.Conn) {
 	go func() {
 
 		defer func() {
-			err := recover()
-			if err != nil {
+			p := recover()
+			if p != nil {
 				// TODO log
-				fmt.Printf("Error: %v\n", err)
+				fmt.Printf("Error: %v\n", p)
 			}
 		}()
 		reply(connect, handleMessage(DecodeMessage(ReadStream(connect))))

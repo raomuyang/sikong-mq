@@ -1,9 +1,11 @@
 package skmq
 
+
 type MQConfig struct {
 	// The max retry times of message push to consumer
 	RetryTimes int
 
+	// Millisecond
 	ACKTimeout int
 
 	// A rate limiter will distributes permits at a configurable rate (n/second)
@@ -55,8 +57,8 @@ var (
 func init() {
 	Configuration = &MQConfig{
 		RetryTimes:   5,
-		ACKTimeout:   3200,
-		Rate:         10000,
+		ACKTimeout:   60000,
+		Rate:         1000,
 		ListenerHost: "127.0.0.1",
 		ListenerPort: "1734"}
 

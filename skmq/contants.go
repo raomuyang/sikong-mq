@@ -89,7 +89,6 @@ const (
 )
 
 const (
-	ConnectTimeOut = 5 * time.Second
-	RetrySleep = 5 * time.Second
-
+	ConnectTimeOut = time.Minute
+	RetrySleep = time.Minute
 )
