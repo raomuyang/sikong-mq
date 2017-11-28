@@ -10,9 +10,9 @@ import (
 )
 
 func main() {
-	confPath := flag.String("conf", "conf.json",
+	confPath := flag.String("conf", skmq.DefaultConf,
 		"The path of queue config.")
-	dbConfPath := flag.String("dbconf", "dbconf.json", "The path of redis config file")
+	dbConfPath := flag.String("dbconf", skmq.DefaultDBConf, "The path of redis config file")
 	flag.Parse()
 
 	confFile, err := os.Open(*confPath)

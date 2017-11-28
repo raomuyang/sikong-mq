@@ -18,11 +18,12 @@ func processRejectedMsg(msgId string) error {
 	_, err := MessageEntryRetryQueue(msgId)
 	switch err.(type) {
 	case UnknownDBOperationException:
-		// TODO log
+		Warn.Println(err)
 	case NoSuchMessage:
-		// TODO log
+		Warn.Println(err)
+		return nil
 	case MessageDead:
-		// TODO log
+		Warn.Println(err)
 		return DeadLetterEnqueue(msgId)
 	case nil:
 		return nil
@@ -39,7 +40,7 @@ func CheckRecipientsAvailable() {
 		appId := apps[i]
 		recipients, err := FindRecipients(appId)
 		if err != nil {
-			// TODO log
+			Warn.Println(err)
 			continue
 		}
 		for r := range recipients {
@@ -47,16 +48,15 @@ func CheckRecipientsAvailable() {
 			address := fmt.Sprintf("%s:%s", recipient.Host, recipient.Port)
 			connect, err := net.DialTimeout("tcp", address, ConnectTimeOut)
 			if err != nil {
-				fmt.Printf("Heartbeat: %s, %s\n", address, err.Error())
+				Warn.Printf("Heartbeat: %s, %s\n", address, err.Error())
 			}
 			result := Heartbeat(connect)
-			fmt.Printf("Heartbeat: %s, ack: %v\n", address, result)
+			Info.Printf("Heartbeat: %s, ack: %v\n", address, result)
 			if !result {
 				recipient.Status = Lost
 				err = UpdateRecipient(*recipient)
 				if err != nil {
-					// TODO log
-					fmt.Println(err)
+					Warn.Println(err)
 				}
 			}
 		}
@@ -68,6 +68,9 @@ func CheckRecipientsAvailable() {
 	若超时或返回值不正确，则返回false
  */
 func Heartbeat(connect net.Conn) bool {
+	if connect == nil {
+		return false
+	}
 	defer connect.SetDeadline(time.Time{})
 
 	connect.SetWriteDeadline(time.Now().Add(ConnectTimeOut))
@@ -80,7 +83,7 @@ func Heartbeat(connect net.Conn) bool {
 	connect.SetReadDeadline(time.Now().Add(ConnectTimeOut))
 	read, err := connect.Read(buf)
 	if read < len(PONG) {
-		// TODO log
+		Warn.Printf("Unexcepted heartbeat response (%d) %s\n", read, buf[:read])
 		return false
 	}
 
@@ -143,7 +146,7 @@ func DeliveryMessage(appId string, content []byte) (net.Conn, error) {
 			break
 		}
 		address := recipient.Host + ":" + recipient.Port
-		fmt.Println("Delivery target:", address)
+		Info.Println("Delivery target:", address)
 		conn, err = net.DialTimeout("tcp", address, ConnectTimeOut)
 		if err != nil {
 			RemoveLostRecipient(*recipient)
