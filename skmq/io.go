@@ -4,7 +4,6 @@ import (
 	"net"
 	"bufio"
 	"io"
-	"fmt"
 )
 
 const (
@@ -48,8 +47,7 @@ func ReadStream(connect net.Conn) (<-chan []byte) {
 			read, err := reader.Read(buf)
 			if err != nil {
 				if err != io.EOF {
-					// TODO log
-					fmt.Println(err)
+					Trace.Println("Stream reader:", err)
 				}
 				break
 			}

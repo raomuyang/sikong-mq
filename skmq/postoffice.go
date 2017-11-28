@@ -48,7 +48,7 @@ var stop = false
 func OpenServer() {
 	InitDBConfig(*DBConfiguration)
 	laddr := Configuration.ListenerHost + ":" + Configuration.ListenerPort
-	fmt.Println("Server: open message queue server, listen " + laddr)
+	Info.Println("Server: open message queue server, listen " + laddr)
 
 	go schedule()
 	go scanTimeoutTasks()
@@ -56,16 +56,17 @@ func OpenServer() {
 
 	listener, err := net.Listen("tcp", laddr)
 	if err != nil {
+		Err.Println(err)
 		panic(err)
 	}
 	defer listener.Close()
 	for {
 		if stop {
-			fmt.Println("Server: shutdown server...")
+			Info.Println("Server: shutdown server...")
 			break
 		}
 		connect, err := listener.Accept()
-		fmt.Printf("Server: accept %v\n", connect.RemoteAddr())
+		Info.Printf("Server: accept %v\n", connect.RemoteAddr())
 		if err != nil {
 			panic(err)
 		}
@@ -98,7 +99,7 @@ func schedule() {
 			}
 			msg, err := MessageDequeue(KMessageQueue)
 			if err != nil {
-				fmt.Println("Scheduler: dequeue error, " + err.Error())
+				Warn.Println("Scheduler: dequeue error, " + err.Error())
 				time.Sleep(10 * time.Second)
 				continue
 			}
@@ -118,7 +119,7 @@ func schedule() {
 			}
 			msg, err := MessageDequeue(KMessageRetryQueue)
 			if err != nil {
-				fmt.Println("Scheduler: retry-msg dequeue error, " + err.Error())
+				Warn.Println("Scheduler: retry-msg dequeue error, " + err.Error())
 				time.Sleep(15 * time.Second)
 				continue
 			}
@@ -139,7 +140,7 @@ func schedule() {
 			}
 			msg, err := MessageDequeue(KDeadLetterQueue)
 			if err != nil {
-				fmt.Println("Scheduler: dl-msg dequeue error, " + err.Error())
+				Warn.Println("Scheduler: dl-msg dequeue error, " + err.Error())
 				time.Sleep(30 * time.Second)
 				continue
 			}
@@ -156,7 +157,7 @@ func schedule() {
 		quit := false
 		for {
 			if quit {
-				fmt.Println("Scheduler: stop.")
+				Trace.Println("Scheduler: stop.")
 				break
 			}
 
@@ -190,7 +191,7 @@ func scanTimeoutTasks() {
 
 		records, err := MessagePostRecords()
 		if err != nil {
-			fmt.Println("Scanner: get records error, " + err.Error())
+			Warn.Println("Scanner: get records error, " + err.Error())
 			time.Sleep(30 * time.Second)
 			continue
 		}
@@ -201,15 +202,15 @@ func scanTimeoutTasks() {
 				_, err := MessageEntryRetryQueue(msgId)
 				switch err.(type) {
 				case NoSuchMessage:
-					fmt.Println("Scheduler: warning, " + err.Error())
+					Warn.Println("Scheduler: warning, " + err.Error())
 					DeadLetterEnqueue(msgId)
 				case MessageDead:
-					fmt.Println("Scheduler: " + err.Error())
+					Warn.Println("Scheduler: " + err.Error())
 					DeadLetterEnqueue(msgId)
 				case nil:
-					fmt.Printf("Scheduler: %s will be retried \n", msgId)
+					Info.Printf("Scheduler: %s will be retried \n", msgId)
 				default:
-					fmt.Println("Scheduler: " + err.Error())
+					Warn.Println("Scheduler: " + err.Error())
 				}
 			}
 		}
@@ -227,14 +228,14 @@ func delivery(message Message) {
 		defer func() {
 			e := recover()
 			if e != nil {
-				fmt.Printf("Delivery: panic, %s \n", e)
+				Err.Printf("Delivery: panic, %s \n", e)
 			}
 		}()
 
-		fmt.Printf("Delivery: delivery message %s/%s \n", message.AppID, message.MsgId)
+		Info.Printf("Delivery: delivery message %s/%s \n", message.AppID, message.MsgId)
 		conn, err := DeliveryMessage(message.AppID, EncodeMessage(message))
 		if err != nil {
-			fmt.Println("Delivery: error, " + err.Error())
+			Err.Println("Delivery: error, " + err.Error())
 			return
 		}
 		conn.SetReadDeadline(time.Now().Add(ConnectTimeOut))
@@ -248,8 +249,7 @@ func receive(connect net.Conn) {
 		defer func() {
 			p := recover()
 			if p != nil {
-				// TODO log
-				fmt.Printf("Error: %v\n", p)
+				Err.Printf("%v\n", p)
 			}
 		}()
 		reply(connect, false, handleMessage(DecodeMessage(ReadStream(connect))))
@@ -261,14 +261,14 @@ func reply(connect net.Conn, proactive bool, repChan <-chan Response) {
 	for {
 		response, ok := <-repChan
 		if !ok {
-			fmt.Println("Reply: message handler close the channel")
+			Info.Println("Reply: message handler close the channel")
 			disconnect = true
 			break
 		}
-		fmt.Printf("Reply: debug %v\n", response)
+		Trace.Printf("Reply: debug %v\n", response)
 		if strings.Compare(response.Status, PONG) == 0 {
 			ReplyHeartbeat(connect)
-			fmt.Println("Reply: PONG")
+			Trace.Println("Reply: PONG")
 			continue
 		}
 
@@ -279,8 +279,7 @@ func reply(connect net.Conn, proactive bool, repChan <-chan Response) {
 		err = SendMessage(connect, EncodeMessage(Message{Content: content, Type: MResponse}))
 
 		if err != nil {
-			// TODO log
-			fmt.Println("Reply: " + err.Error())
+			Warn.Println("Reply: " + err.Error())
 		}
 		if proactive {
 			disconnect = true
@@ -291,11 +290,10 @@ func reply(connect net.Conn, proactive bool, repChan <-chan Response) {
 	}
 
 	if disconnect {
-		fmt.Println("Close connect: " + connect.RemoteAddr().String())
+		Info.Println("Close connect: " + connect.RemoteAddr().String())
 		err := connect.Close()
 		if err != nil {
-			// TODO log
-			fmt.Println("Reply: close connect failed, " + err.Error())
+			Warn.Println("Reply: close connect failed, " + err.Error())
 		}
 	} else {
 		connect.SetReadDeadline(time.Time{})
@@ -309,52 +307,53 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 		for {
 			message, ok := <-msgChan
 			if !ok {
-				fmt.Println("Handler: message channel closed.")
+				Trace.Println("Handler: message channel closed.")
 				break
 			}
-			fmt.Printf("Handler: handle message %s/%s[%s] \n", message.AppID, message.MsgId, message.Type)
+			Info.Printf("Handler: handle message %s/%s[%s] \n", message.AppID, message.MsgId, message.Type)
 			switch message.Type {
 			case RegisterMsg:
-				fmt.Println("Handler: mesage rejected: " + message.MsgId)
+				Warn.Println("Handler: mesage rejected: " + message.MsgId)
 				err := recipientRegister(message)
 				status := MAck
 				var content = "Recipient register successful."
 				if err != nil {
-					// TODO log
+					Warn.Println(err)
 					status = MReject
 					content = err.Error()
 				}
 				out <- Response{Status: status, Content: content}
 			case MArrivedMsg:
-				fmt.Println("Handler: mesage deliveried successfully: " + message.MsgId)
+				Info.Println("Handler: mesage deliveried successfully: " + message.MsgId)
 				disconnect := true
 				err := arrive(message)
 				status := MAck
 				if err != nil {
 					status = MError
 					disconnect = false
-					fmt.Printf("--arrived ack error: %s/%s, %s \n",
+					Warn.Printf("arrived ack error: %s/%s, %s \n",
 						message.AppID, message.MsgId, err.Error())
 				}
 				out <- Response{Status: status, Disconnect: disconnect}
 			case MAckMsg:
-				fmt.Println("Handler: message ack, " + message.MsgId)
+				Info.Println("Handler: message ack, " + message.MsgId)
 				err := ack(message)
 				status := MAck
 				if err != nil {
 					status = MError
-					fmt.Printf("--message ack error: %s/%s, %s \n",
+					Warn.Printf("message ack error: %s/%s, %s \n",
 						message.AppID, message.MsgId, err.Error())
 				}
 				out <- Response{Status: status}
 			case MError:
+				Warn.Printf("Msg %s error\n", message.MsgId)
 				err := msgError(message)
 				status := MAck
 				disconnect := true
 				if err != nil {
 					status = MError
 					disconnect = false
-					fmt.Printf("--process error ack error: %s/%s, %s \n",
+					Err.Printf("process error ack error: %s/%s, %s \n",
 						message.AppID, message.MsgId, err.Error())
 				}
 				out <- Response{Status: status, Disconnect: disconnect}
@@ -365,14 +364,14 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 				if err != nil {
 					status = MError
 					disconnect = false
-					fmt.Printf("--reject ack error: %s/%s, %s \n",
+					Warn.Printf("reject ack error: %s/%s, %s \n",
 						message.AppID, message.MsgId, err.Error())
 				}
 				out <- Response{Status: status, Disconnect: disconnect}
 			case PING:
 				out <- Response{Status: PONG}
 			default:
-				fmt.Println("Save message " + message.MsgId)
+				Info.Println("Save message " + message.MsgId)
 				content, err := saveMessage(message)
 				status := MAck
 				if err != nil {
@@ -397,7 +396,7 @@ func DecodeMessage(input <-chan []byte) <-chan Message {
 		defer func() {
 			p := recover()
 			if p != nil {
-				fmt.Println("Decode message error:", p)
+				Err.Println("Decode message error:", p)
 			}
 		}()
 		message := Message{Status: MPending, Retried: 0}
@@ -422,7 +421,7 @@ func DecodeMessage(input <-chan []byte) <-chan Message {
 							msgChan <- Message{Type: PING}
 							continue
 						} else {
-							fmt.Println("MError: param separator not found")
+							Err.Println("MError: param separator not found")
 							panic(StreamReadError{sub, "param separator not found"})
 						}
 					}
@@ -443,7 +442,7 @@ func DecodeMessage(input <-chan []byte) <-chan Message {
 					case PRequestType:
 						message.Type = value
 					default:
-						fmt.Printf("No such parameter: %s.\n", key)
+						Warn.Printf("No such parameter: %s.\n", key)
 
 					}
 				} else {
@@ -503,7 +502,6 @@ func reject(message Message) error {
 
 /**
 	Recipient process error, entry dl-queue
-	TODO error log
  */
 func msgError(message Message) error {
 	return DeadLetterEnqueue(message.MsgId)

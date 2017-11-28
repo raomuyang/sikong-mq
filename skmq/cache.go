@@ -55,7 +55,7 @@ func InitDBConfig(config DBConfig) *redis.Pool {
 	Pool.TestOnBorrow = func(c redis.Conn, t time.Time) error {
 		_, err := c.Do("PING")
 		if err != nil {
-			fmt.Println(err)
+			Warn.Println(err)
 		}
 		return err
 	}
@@ -144,8 +144,7 @@ func FindRecipients(applicationId string) ([]*RecipientInfo, error) {
 		id := rep[i]
 		rec, err := GetRecipientById(id)
 		if err != nil {
-			// TODO log
-			fmt.Println("List recipient member error:", err)
+			Err.Println("List recipient member error:", err)
 			continue
 		}
 		list = append(list, rec)
@@ -248,7 +247,7 @@ func GetMessageInfo(msgId string) (*Message, error) {
 }
 
 func DeleteMessage(msgId string) error {
-	fmt.Println("Debug:", "delete message", msgId)
+	Trace.Println("delete message", msgId)
 	dbConn := Pool.Get()
 	_, err := dbConn.Do("DEL", msgId)
 	if err != nil {
@@ -291,7 +290,7 @@ func MessageEnqueue(message Message) error {
 		KContent, message.Content,
 		KRetried, message.Retried,
 		KStatus, message.Status)
-	fmt.Printf("Cache[Debug]: message enqueue, messageId: %s, %s: %s\n", message.MsgId, KAppId, message.AppID)
+	Trace.Printf("message enqueue, messageId: %s, %s: %s\n", message.MsgId, KAppId, message.AppID)
 	if err != nil {
 		return UnknownDBOperationException{Detail: "Set message exception: " + err.Error()}
 	}
@@ -398,7 +397,7 @@ func DeadLetterEnqueue(msgId string) error {
 
 	dbConn := Pool.Get()
 	_, err := dbConn.Do("HDEL", KMessageMap, msgId)
-	fmt.Println("Debug", "HDEL", KMessageMap, msgId)
+	Trace.Println("HDEL", KMessageMap, msgId)
 	if err != nil {
 		return UnknownDBOperationException{Detail: "delete message record failed, " + err.Error()}
 	}

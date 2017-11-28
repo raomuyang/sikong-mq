@@ -92,3 +92,8 @@ const (
 	ConnectTimeOut = time.Minute
 	RetrySleep = time.Minute
 )
+
+const (
+	DefaultConf = "conf.json"
+	DefaultDBConf = "dbconf.json"
+)
