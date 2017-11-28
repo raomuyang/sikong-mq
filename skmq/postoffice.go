@@ -79,8 +79,10 @@ func StopServer() {
 }
 
 func heartbeatCyclically() {
-	CheckRecipientsAvailable()
-	time.Sleep(time.Minute)
+	for {
+		CheckRecipientsAvailable()
+		time.Sleep(time.Minute)
+	}
 }
 
 func schedule() {
