@@ -83,7 +83,7 @@ func Heartbeat(connect net.Conn) bool {
 	connect.SetReadDeadline(time.Now().Add(ConnectTimeOut))
 	read, err := connect.Read(buf)
 	if read < len(PONG) {
-		Warn.Printf("Unexcepted heartbeat response (%d) %s\n", read, buf[:read])
+		Warn.Printf("Unexpected heartbeat response (%d) %s\n", read, buf[:read])
 		return false
 	}
 
