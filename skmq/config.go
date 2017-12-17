@@ -9,7 +9,7 @@ type MQConfig struct {
 	ACKTimeout int `json:"ack_timeout"`
 
 	// A rate limiter will distributes permits at a configurable rate (n/second)
-	Rate int `json:"rate"`
+	Rate float64 `json:"rate"`
 
 	ListenerHost string `json:"listener_host"`
 
