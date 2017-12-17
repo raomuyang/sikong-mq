@@ -60,7 +60,14 @@ func OpenServer() {
 		panic(err)
 	}
 	defer listener.Close()
+
+	rateLimiter, err := CreateSmoothRateLimiter(Configuration.Rate)
+	if err != nil {
+		panic(err)
+	}
+
 	for {
+		rateLimiter.Acquire(1)
 		if stop {
 			Info.Println("Server: shutdown server...")
 			break
