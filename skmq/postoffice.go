@@ -227,6 +227,7 @@ func scanTimeoutTasks() {
 	}
 }
 
+// TODO should use it to process expired messages.
 func processDeadLetter(message Message) {
 	DeleteMessage(message.MsgId)
 }
