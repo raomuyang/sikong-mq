@@ -227,12 +227,14 @@ func scanTimeoutTasks() {
 	}
 }
 
-// TODO should use it to process expired messages.
+// TODO Should use it to process expired messages.
 func processDeadLetter(message Message) {
 	DeleteMessage(message.MsgId)
 }
 
+// TODO Should distinguish between the topic and queue
 func delivery(message Message) {
+
 	message.Type = MPush
 	go func() {
 		defer func() {
