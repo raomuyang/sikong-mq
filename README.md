@@ -9,7 +9,7 @@ from channel to channel, a process by a handler and send to next handler (via ch
 The whole experience of a message includes encoding, decode, store, enqueue and wait to 
 send, etc.
 
-![message process](http://cloud.atomicer.cn/blog-img/msg-queue/message-queue-channels.png)
+![message process](https://raw.githubusercontent.com/raomuyang/sikong-mq/master/message-process.png)
 
 
 ## Availability
