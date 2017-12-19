@@ -91,7 +91,7 @@ func (limiter *SmoothRateLimiter) doSetRate(permitsPerSeconds float64, now int64
 }
 
 /**
-	将nextFreeTicketMicros同步到当前时间
+	将nextFreeTicket同步到当前时间
  */
 func (limiter *SmoothRateLimiter) resync(now int64) {
 	if now > limiter.nextFreeTicket {
