@@ -61,7 +61,7 @@ func OpenServer() {
 	}
 	defer listener.Close()
 
-	rateLimiter, err := CreateSmoothRateLimiter(Configuration.Rate)
+	rateLimiter, err := CreateTokenBucket(Configuration.Rate)
 	if err != nil {
 		panic(err)
 	}
