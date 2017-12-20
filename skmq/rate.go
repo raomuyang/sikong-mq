@@ -82,7 +82,6 @@ func (limiter *TokenBucketLimiter) doSetRate(permitsPerSeconds float64, now int6
 		limiter.storedPermits = limiter.maxPermits
 	} else {
 		limiter.storedPermits = 0.0
-		fmt.Println("set rate, stored", limiter.storedPermits)
 		if oldMax != 0.0 {
 			limiter.storedPermits = limiter.storedPermits * limiter.maxPermits / oldMax
 		}
