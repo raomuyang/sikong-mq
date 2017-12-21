@@ -128,7 +128,7 @@ func receive(connect net.Conn) {
 	}()
 }
 
-func reply(connect net.Conn, proactive bool, repChan <-chan process.Response) {
+func reply(connect net.Conn, proactive bool, repChan <-chan base.Response) {
 	disconnect := false
 	for {
 		response, ok := <-repChan

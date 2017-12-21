@@ -11,24 +11,18 @@ import (
 
 const MessageChanBuf = 8
 
-type Response struct {
-	Status     string `json:"status"`
-	Content    string `json:"content"`
-	Disconnect bool   `json:"-"`
-}
-
-func processNewMsg(message base.Message, out chan<- Response)  {
+func processNewMsg(message base.Message, out chan<- base.Response)  {
 	content, err := saveMessage(message)
 	status := base.MAck
 	if err != nil {
 		status = base.MReject
 		content = "Message enqueue failed"
 	}
-	out <- Response{Status: status, Content: content}
+	out <- base.Response{Status: status, Content: content}
 }
 
 
-func processRegisterMsg(message base.Message, out chan<- Response)  {
+func processRegisterMsg(message base.Message, out chan<- base.Response)  {
 	err := recipientRegister(message)
 	status := base.MAck
 	var content = "Recipient register successful."
@@ -37,10 +31,10 @@ func processRegisterMsg(message base.Message, out chan<- Response)  {
 		status = base.MReject
 		content = err.Error()
 	}
-	out <- Response{Status: status, Content: content}
+	out <- base.Response{Status: status, Content: content}
 }
 
-func processArrivedMsg(message base.Message, out chan<- Response)  {
+func processArrivedMsg(message base.Message, out chan<- base.Response)  {
 	disconnect := true
 	err := UpdateMessageStatus(message.MsgId, base.MArrived)
 	status := base.MAck
@@ -50,10 +44,10 @@ func processArrivedMsg(message base.Message, out chan<- Response)  {
 		Warn.Printf("arrived ack error: %s/%s, %s \n",
 			message.AppID, message.MsgId, err.Error())
 	}
-	out <- Response{Status: status, Disconnect: disconnect}
+	out <- base.Response{Status: status, Disconnect: disconnect}
 }
 
-func processAckMsg(message base.Message, out chan<- Response)  {
+func processAckMsg(message base.Message, out chan<- base.Response)  {
 	err := DeleteMessage(message.MsgId)
 	status := base.MAck
 	if err != nil {
@@ -61,10 +55,10 @@ func processAckMsg(message base.Message, out chan<- Response)  {
 		Warn.Printf("message ack error: %s/%s, %s \n",
 			message.AppID, message.MsgId, err.Error())
 	}
-	out <- Response{Status: status}
+	out <- base.Response{Status: status}
 }
 
-func processErrorMsg(message base.Message, out chan<- Response)  {
+func processErrorMsg(message base.Message, out chan<- base.Response)  {
 	err := DeadLetterEnqueue(message.MsgId)
 	status := base.MAck
 	disconnect := true
@@ -74,10 +68,10 @@ func processErrorMsg(message base.Message, out chan<- Response)  {
 		Err.Printf("process error ack error: %s/%s, %s \n",
 			message.AppID, message.MsgId, err.Error())
 	}
-	out <- Response{Status: status, Disconnect: disconnect}
+	out <- base.Response{Status: status, Disconnect: disconnect}
 }
 
-func processRejectedMsg(message base.Message, out chan<- Response)  {
+func processRejectedMsg(message base.Message, out chan<- base.Response)  {
 	err := checkRejectedMsg(message.MsgId)
 	status := base.MAck
 	disconnect := true
@@ -87,7 +81,7 @@ func processRejectedMsg(message base.Message, out chan<- Response)  {
 		Warn.Printf("reject ack error: %s/%s, %s \n",
 			message.AppID, message.MsgId, err.Error())
 	}
-	out <- Response{Status: status, Disconnect: disconnect}
+	out <- base.Response{Status: status, Disconnect: disconnect}
 
 }
 
@@ -227,8 +221,8 @@ func EncodeMessage(message base.Message) []byte {
 	return append(append([]byte(header), content...), []byte(base.End)...)
 }
 
-func HandleMessage(msgChan <-chan base.Message) <-chan Response {
-	out := make(chan Response, MessageChanBuf)
+func HandleMessage(msgChan <-chan base.Message) <-chan base.Response {
+	out := make(chan base.Response, MessageChanBuf)
 	go func() {
 		for {
 			message, ok := <-msgChan
@@ -254,7 +248,7 @@ func HandleMessage(msgChan <-chan base.Message) <-chan Response {
 				Warn.Printf("Msg %s rejected\n", message.MsgId)
 				processRejectedMsg(message, out)
 			case base.PING:
-				out <- Response{Status: base.PONG}
+				out <- base.Response{Status: base.PONG}
 			default:
 				Info.Println("Save message " + message.MsgId)
 				processNewMsg(message, out)
