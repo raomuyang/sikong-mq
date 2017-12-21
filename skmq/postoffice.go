@@ -400,7 +400,7 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 
 /**
 	这里使用四个换行（\r\n\r\n）来间隔一段消息解决tcp消息粘包问题，
-	每个参数之间用两个换行（\r\n\r\n）间隔
+	每个参数之间用两个换行（\r\n）间隔
  */
 func DecodeMessage(input <-chan []byte) <-chan Message {
 	msgChan := make(chan Message, ProcessBuf)
