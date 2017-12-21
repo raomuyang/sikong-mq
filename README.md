@@ -1,6 +1,6 @@
 # SIKONG-MQ
 
-> A message queue through the pipe connected sender and receiver
+> A message queue through the channel connected sender and receiver
 
 This message queue designed based on the advantage of golang channel and goroutine 
 
@@ -136,11 +136,11 @@ Heartbeat package: just return a `pong\r\n\r\n` package when it receives data th
 
 ## Launch
 
-> launcher: mqlauncher.go
+> launch service by mqlauncher: mqlauncher `--conf` /path/to/conf.json `--dbconf` path/to/dbconf.json
 
 The launcher must load mq config and db config while message queue launch
 
-* mq config 
+* mq config
 
 ```json
 {
@@ -172,7 +172,23 @@ The launcher must load mq config and db config while message queue launch
 ---
 
 ---
-## 中文说明
+# SKMQ - 中文说明
+
+SKMQ的设计基于构建在golang的channel和goroutine的优势上
+
+当连接建立时，客户端发送过来的字节流被解码成消息实体，通过通道传递给正在等待的其它handler处理，
+其它的handler处理完成之后，又通过通道传递给下一个handler，这个过程中消息会经历编码、缓存、进入队列、
+投递给消费者等一系列过程。
+
+
+## 实现
+
+* 消息排队、消息投递
+* 消费者的负载均衡
+* 流量控制
+
+
+## 传输协议
 
 SKMQ的服务基于TCP协议，它使用结构化的数据进行通讯。消息编码的规则类似HTTP服务的响应头，使用两个换行符
 `\r\n`间隔一条参数，参数的key和value之间使用`=`间隔，使用四个换行`\r\n\r\n`符间隔一段消息，通过这种
@@ -258,4 +274,49 @@ process2:
 	connect.SetReadDeadline(time.Now().Add(ConnectTimeOut))
 	read, err := connect.Read(buf)
 ```
+
+## 服务部署与使用
+
+* redis
+
+消息的缓存使用了redis，在服务启动前，需配置好可用的redis服务
+
+* 配置
+
+消息队列默认配置如下
+
+conf.json
+
+```json
+{
+  "retry_times": 5,
+  "ack_timeout": 60000,
+  "rate": 1000,
+  "listener_host": "127.0.0.1",
+  "listener_port": "1734"
+}
+```
+
+Redis的默认配置如下
+
+dbconf.json
+
+```json
+{
+  "address": "127.0.0.1:6379",
+  "password": "",
+  "max_idle": 0,
+  "max_active": 0,
+  "idle_timeout": 0,
+  "wait": false,
+  "db": 1,
+  "read_timeout": 0,
+  "write_timeout": 0,
+  "dial_connect_timeout": 0
+}
+```
+
+mqlauncher启动时会默认读取同级目录下的conf.json和dbconf.json，可以通过`--conf`和`--dbconf`分别指定
+消息队列配置和redis配置
+
 
