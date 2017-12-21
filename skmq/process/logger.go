@@ -1,4 +1,4 @@
-package skmq
+package process
 
 import (
 	"log"
