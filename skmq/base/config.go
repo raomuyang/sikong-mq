@@ -1,4 +1,4 @@
-package skmq
+package base
 
 
 type MQConfig struct {
@@ -47,23 +47,4 @@ type DBConfig struct {
 	WriteTimeout int `json:"write_timeout"`
 
 	DialConnectTimeout int `json:"dial_connect_timeout"`
-}
-
-var (
-	Configuration   *MQConfig
-	DBConfiguration *DBConfig
-)
-
-func init() {
-	Configuration = &MQConfig{
-		RetryTimes:   5,
-		ACKTimeout:   60000,
-		Rate:         1000,
-		ListenerHost: "127.0.0.1",
-		ListenerPort: "1734"}
-
-	DBConfiguration = &DBConfig{
-		Address:      "127.0.0.1:6379",
-		DB:           1}
-
 }

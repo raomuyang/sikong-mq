@@ -1,4 +1,4 @@
-package model
+package base
 
 /**
 	模仿Http协议，每个请求行均以\r\n间隔

@@ -1,4 +1,4 @@
-package skmq
+package base
 
 import "time"
 

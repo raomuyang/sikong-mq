@@ -1,4 +1,4 @@
-package model
+package base
 
 type RecipientInfo struct {
 	RecipientId   string `json:"id"`
