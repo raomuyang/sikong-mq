@@ -108,6 +108,9 @@ func RecipientBalance(appId string) (*base.RecipientInfo, error) {
 			recipient = r
 		}
 	}
+	if recipient != nil {
+		process.UpdateRecipientAssigned(*recipient)
+	}
 	return recipient, nil
 }
 
@@ -115,7 +118,7 @@ func RecipientBalance(appId string) (*base.RecipientInfo, error) {
 	从注册的接收方中挑选一台用于发送，并将建立的连接返回
 	暂时只支持点到点的消息投递
  */
-func DeliveryMessage(appId string, content []byte) (net.Conn, error) {
+func Unicast(appId string, content []byte) (net.Conn, error) {
 
 	var conn net.Conn
 	for {
@@ -126,13 +129,7 @@ func DeliveryMessage(appId string, content []byte) (net.Conn, error) {
 		if recipient == nil {
 			break
 		}
-		address := recipient.Host + ":" + recipient.Port
-		Info.Println("Delivery target:", address)
-		conn, err = net.DialTimeout("tcp", address, base.ConnectTimeOut)
-		if err != nil {
-			RemoveLostRecipient(*recipient)
-			conn = nil
-		}
+		conn = getConnect(recipient)
 		break
 
 	}
@@ -142,11 +139,43 @@ func DeliveryMessage(appId string, content []byte) (net.Conn, error) {
 		return nil, err
 	}
 
-	err := process.WriteBuffer(conn, content)
+	err := DeliveryContent(conn, content)
 	if err != nil {
 		return nil, err
 	}
 	return conn, nil
+}
+
+
+/**
+	Get broadcast connects
+ */
+func BroadcastConnect(appId string) (<-chan net.Conn, error) {
+
+	connects := make(chan net.Conn)
+	recipients, err := process.FindRecipients(appId)
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		for i := range recipients {
+			r := recipients[i]
+			if strings.Compare(base.Alive, r.Status) != 0 {
+				continue
+			}
+			conn := getConnect(r)
+			if conn == nil {
+				continue
+			}
+		}
+	}()
+
+	return connects, nil
+}
+
+func DeliveryContent(conn net.Conn, content []byte) error {
+	return process.WriteBuffer(conn, content)
 }
 
 /**
@@ -157,4 +186,18 @@ func RemoveLostRecipient(recipient base.RecipientInfo) {
 		recipient.Status = base.Lost
 		process.UpdateRecipient(recipient)
 	}()
+}
+
+/**
+	Get connect by recipient info
+ */
+func getConnect(recipient *base.RecipientInfo) net.Conn {
+	address := recipient.Host + ":" + recipient.Port
+	Info.Println("Connect target:", address)
+	conn, err := net.DialTimeout("tcp", address, base.ConnectTimeOut)
+	if err != nil {
+		RemoveLostRecipient(*recipient)
+		return nil
+	}
+	return conn
 }

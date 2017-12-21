@@ -15,11 +15,14 @@ import (
 )
 
 const (
-	ProcessBuf = 8
 	SendBuf    = 1 << 5
 )
 
-var stop = false
+var (
+	stop = false
+	mutex sync.Mutex
+)
+
 
 func OpenServer() {
 	process.InitDBConfig(*process.DBConfiguration)
@@ -58,6 +61,12 @@ func OpenServer() {
 }
 
 func StopServer() {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if stop {
+		return
+	}
 	stop = true
 }
 
@@ -66,26 +75,6 @@ func heartbeatCyclically() {
 		exchange.CheckRecipientsAvailable()
 		time.Sleep(time.Minute)
 	}
-}
-
-
-func schedule() {
-	deliveryQueue := make(chan base.Message, SendBuf)
-	dlQueue := make(chan base.Message, SendBuf)
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go msgDequeueScheduler(deliveryQueue, wg)
-
-	go msgRetryScheduler(deliveryQueue, wg)
-
-	go deadLetterScheduler(dlQueue)
-
-	go postman(deliveryQueue, dlQueue)
-
-	wg.Wait()
-	close(deliveryQueue)
 }
 
 // scan ack timeout
@@ -125,124 +114,6 @@ func scanTimeoutTasks() {
 	}
 }
 
-func msgDequeueScheduler(deliveryQueue chan<- base.Message, waitGroup sync.WaitGroup) {
-
-	// Msg dequeue
-	for {
-		if stop {
-			waitGroup.Done()
-			break
-		}
-		msg, err := process.MessageDequeue(base.KMessageQueue)
-		if err != nil {
-			Warn.Println("Scheduler: dequeue error, " + err.Error())
-			time.Sleep(10 * time.Second)
-			continue
-		}
-		if msg == nil {
-			continue
-		}
-		deliveryQueue <- *msg
-	}
-
-}
-
-
-
-func msgRetryScheduler(deliveryQueue chan<- base.Message, waitGroup sync.WaitGroup)  {
-	// retry-msg dequeue
-	for {
-		if stop {
-			waitGroup.Done()
-			break
-		}
-		msg, err := process.MessageDequeue(base.KMessageRetryQueue)
-		if err != nil {
-			Warn.Println("Scheduler: retry-msg dequeue error, " + err.Error())
-			time.Sleep(15 * time.Second)
-			continue
-		}
-		if msg == nil {
-			time.Sleep(30 * time.Second)
-			continue
-		}
-		deliveryQueue <- *msg
-	}
-}
-
-func deadLetterScheduler(dlQueue chan<- base.Message)  {
-	// dl-msg dequeue
-	for {
-		if stop {
-			close(dlQueue)
-			break
-		}
-		msg, err := process.MessageDequeue(base.KDeadLetterQueue)
-		if err != nil {
-			Warn.Println("Scheduler: dl-msg dequeue error, " + err.Error())
-			time.Sleep(30 * time.Second)
-			continue
-		}
-		if msg == nil {
-			time.Sleep(60 * time.Second)
-			continue
-		}
-		dlQueue <- *msg
-	}
-}
-
-func postman(deliveryQueue <-chan base.Message, dlQueue <-chan base.Message)  {
-	// msg delivery
-	quit := false
-	for {
-		if quit {
-			Trace.Println("Scheduler: stop.")
-			break
-		}
-
-		select {
-		case msg, ok := <-deliveryQueue:
-			if !ok {
-				quit = true
-				break
-			}
-			delivery(msg)
-		case msg, ok := <-dlQueue:
-			if ok {
-				processDeadLetter(msg)
-			}
-		default:
-		}
-	}
-}
-
-// TODO Should use it to process expired messages.
-func processDeadLetter(message base.Message) {
-	process.DeleteMessage(message.MsgId)
-}
-
-// TODO Should distinguish between the topic and queue
-func delivery(message base.Message) {
-
-	message.Type = base.MPush
-	go func() {
-		defer func() {
-			e := recover()
-			if e != nil {
-				Err.Printf("Delivery: panic, %s \n", e)
-			}
-		}()
-
-		Info.Printf("Delivery: delivery message %s/%s \n", message.AppID, message.MsgId)
-		conn, err := exchange.DeliveryMessage(message.AppID, process.EncodeMessage(message))
-		if err != nil {
-			Err.Println("Delivery: error, " + err.Error())
-			return
-		}
-		conn.SetReadDeadline(time.Now().Add(base.ConnectTimeOut))
-		reply(conn, true, process.HandleMessage(process.DecodeMessage(process.ReadStream(conn))))
-	}()
-}
 
 func receive(connect net.Conn) {
 	go func() {

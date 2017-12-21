@@ -222,7 +222,8 @@ func ResetRecipientAssignedRecord(applicationId string) error {
 func GetMessageInfo(msgId string) (*base.Message, error) {
 	dbConn := Pool.Get()
 
-	baseResult, err := redis.Strings(dbConn.Do("HMGET", msgId, base.KAppId, base.KStatus, base.KRetried))
+	baseResult, err := redis.Strings(dbConn.Do("HMGET", msgId, base.KAppId, base.KStatus,
+		base.KRetried, base.KType))
 	if err != nil {
 		return nil, skerr.UnknownDBOperationException{Detail: "get message info: " + err.Error()}
 	}
@@ -234,7 +235,14 @@ func GetMessageInfo(msgId string) (*base.Message, error) {
 		return nil, skerr.AttrTypeError{Type: "int", Value: baseResult[2]}
 	}
 
-	message := base.Message{MsgId: msgId, AppID: baseResult[0], Status: baseResult[1], Retried: retried}
+	msgType := baseResult[3]
+
+	message := base.Message{
+		MsgId: msgId,
+		AppID: baseResult[0],
+		Status: baseResult[1],
+		Retried: retried,
+		Type: msgType}
 	content, err := redis.ByteSlices(dbConn.Do("HMGET", msgId, base.KContent))
 	if err != nil {
 		return nil, skerr.UnknownDBOperationException{Detail: "Get message content: " + err.Error()}
@@ -288,9 +296,11 @@ func MessageEnqueue(message base.Message) error {
 		message.MsgId,
 		base.KAppId, message.AppID,
 		base.KContent, message.Content,
+		base.KType, message.Type,
 		base.KRetried, message.Retried,
 		base.KStatus, message.Status)
-	Trace.Printf("message enqueue, messageId: %s, %s: %s\n", message.MsgId, base.KAppId, message.AppID)
+	Trace.Printf("message enqueue, messageId: %s, %s: %s, type: %s\n",
+		message.MsgId, base.KAppId, message.AppID, message.Type)
 	if err != nil {
 		return skerr.UnknownDBOperationException{Detail: "Set message exception: " + err.Error()}
 	}

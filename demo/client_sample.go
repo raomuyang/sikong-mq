@@ -15,7 +15,7 @@ func main() {
 	testMsg1 := base.Message{
 		MsgId:   "Test-msg-id-1",
 		AppID:   "test-app-id",
-		Type:    base.TopicMsg,
+		Type:    base.QueueMsg,
 		Content: append(content, []byte("- Msg-1")...)}
 
 	testMsg2 := base.Message{
