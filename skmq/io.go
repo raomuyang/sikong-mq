@@ -12,6 +12,9 @@ const (
 	CHUNK   = 1 << 13
 )
 
+/**
+	Send stream end with `\r\n\r\n`
+ */
 func SendMessage(conn net.Conn, buf []byte) (error) {
 	buf = append(buf, []byte(End)...)
 	return WriteBuffer(conn, buf)

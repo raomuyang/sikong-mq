@@ -8,28 +8,6 @@ import (
 	"bytes"
 )
 
-/**
-	If the message retransmission times is no more than limit,
-	it will be entries another queue to wait retry.
-	otherwise it will be entries the dead letter queue
- */
-func processRejectedMsg(msgId string) error {
-
-	_, err := MessageEntryRetryQueue(msgId)
-	switch err.(type) {
-	case UnknownDBOperationException:
-		Warn.Println(err)
-	case NoSuchMessage:
-		Warn.Println(err)
-		return nil
-	case MessageDead:
-		Warn.Println(err)
-		return DeadLetterEnqueue(msgId)
-	case nil:
-		return nil
-	}
-	return err
-}
 
 /**
 	遍历一次所有的Recipients，将失联的标记为Lost

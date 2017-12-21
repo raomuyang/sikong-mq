@@ -2,41 +2,17 @@ package skmq
 
 import (
 	"net"
-	"fmt"
-	"bytes"
 	"errors"
 	"encoding/json"
 	"time"
 	"strings"
 	"sync"
+	"github.com/sikong-mq/skmq/ratelimiter"
+	"github.com/sikong-mq/skmq/model"
 )
 
-type RecipientInfo struct {
-	RecipientId   string `json:"id"`
-	ApplicationId string `json:"app_id"`
-	Host          string `json:"host"`
-	Port          string `json:"port"`
-	Status        string `json:"-"`
-	Weight        int    `json:"weight"`
-}
-
-/**
-	模仿Http协议，每个请求行均以\r\n间隔
- */
-type Message struct {
-	MsgId   string
-	AppID   string
-	Type    string
-	Content []byte
-	Status  string
-	Retried int
-}
-
-type Response struct {
-	Status     string `json:"status"`
-	Content    string `json:"content"`
-	Disconnect bool   `json:"-"`
-}
+type Message model.Message
+type RecipientInfo model.RecipientInfo
 
 const (
 	ProcessBuf = 8
@@ -61,7 +37,7 @@ func OpenServer() {
 	}
 	defer listener.Close()
 
-	rateLimiter, err := CreateTokenBucket(Configuration.Rate)
+	rateLimiter, err := ratelimiter.CreateTokenBucket(Configuration.Rate)
 	if err != nil {
 		panic(err)
 	}
@@ -326,71 +302,24 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 			switch message.Type {
 			case RegisterMsg:
 				Warn.Println("Handler: mesage rejected: " + message.MsgId)
-				err := recipientRegister(message)
-				status := MAck
-				var content = "Recipient register successful."
-				if err != nil {
-					Warn.Println(err)
-					status = MReject
-					content = err.Error()
-				}
-				out <- Response{Status: status, Content: content}
+				processRegisterMsg(message, out)
 			case MArrivedMsg:
 				Info.Println("Handler: mesage deliveried successfully: " + message.MsgId)
-				disconnect := true
-				err := arrive(message)
-				status := MAck
-				if err != nil {
-					status = MError
-					disconnect = false
-					Warn.Printf("arrived ack error: %s/%s, %s \n",
-						message.AppID, message.MsgId, err.Error())
-				}
-				out <- Response{Status: status, Disconnect: disconnect}
+				processArrivedMsg(message, out)
 			case MAckMsg:
 				Info.Println("Handler: message ack, " + message.MsgId)
-				err := ack(message)
-				status := MAck
-				if err != nil {
-					status = MError
-					Warn.Printf("message ack error: %s/%s, %s \n",
-						message.AppID, message.MsgId, err.Error())
-				}
-				out <- Response{Status: status}
+				processAckMsg(message, out)
 			case MError:
 				Warn.Printf("Msg %s error\n", message.MsgId)
-				err := msgError(message)
-				status := MAck
-				disconnect := true
-				if err != nil {
-					status = MError
-					disconnect = false
-					Err.Printf("process error ack error: %s/%s, %s \n",
-						message.AppID, message.MsgId, err.Error())
-				}
-				out <- Response{Status: status, Disconnect: disconnect}
+				processErrorMsg(message, out)
 			case MRejectMsg:
-				err := reject(message)
-				status := MAck
-				disconnect := true
-				if err != nil {
-					status = MError
-					disconnect = false
-					Warn.Printf("reject ack error: %s/%s, %s \n",
-						message.AppID, message.MsgId, err.Error())
-				}
-				out <- Response{Status: status, Disconnect: disconnect}
+				Warn.Printf("Msg %s rejected\n", message.MsgId)
+				processRejectedMsg(message, out)
 			case PING:
 				out <- Response{Status: PONG}
 			default:
 				Info.Println("Save message " + message.MsgId)
-				content, err := saveMessage(message)
-				status := MAck
-				if err != nil {
-					status = MReject
-					content = "Message enqueue failed"
-				}
-				out <- Response{Status: status, Content: content}
+				processNewMsg(message, out)
 			}
 		}
 		close(out)
@@ -398,139 +327,3 @@ func handleMessage(msgChan <-chan Message) <-chan Response {
 	return out
 }
 
-/**
-	这里使用四个换行（\r\n\r\n）来间隔一段消息解决tcp消息粘包问题，
-	每个参数之间用两个换行（\r\n）间隔
- */
-func DecodeMessage(input <-chan []byte) <-chan Message {
-	msgChan := make(chan Message, ProcessBuf)
-	go func() {
-		defer func() {
-			p := recover()
-			if p != nil {
-				Err.Println("Decode message error:", p)
-			}
-		}()
-		message := Message{Status: MPending, Retried: 0}
-		var line []byte
-		for {
-			buf, ok := <-input
-			if !ok {
-				close(msgChan)
-				break
-			}
-			line = append(line, buf[:]...)
-			buf = []byte{}
-
-			split := bytes.Split(line, []byte(Delim))
-			for i := 0; i < len(split)-1; i++ {
-				sub := split[i]
-				if len(sub) > 0 {
-					spIndex := bytes.Index(sub, []byte(Separator))
-					if spIndex < 0 {
-						// 心跳信息
-						if bytes.Compare([]byte(PING), sub) == 0 {
-							msgChan <- Message{Type: PING}
-							continue
-						} else {
-							Err.Println("MError: param separator not found")
-							panic(StreamReadError{sub, "param separator not found"})
-						}
-					}
-
-					key := fmt.Sprintf("%s", sub[:spIndex])
-					if strings.Compare(PContent, key) == 0 {
-						value := sub[spIndex+1:]
-						message.Content = value
-						continue
-					}
-
-					value := fmt.Sprintf("%s", sub[spIndex+1:])
-					switch key {
-					case PMsgId:
-						message.MsgId = value
-					case PAppID:
-						message.AppID = value
-					case PRequestType:
-						message.Type = value
-					default:
-						Warn.Printf("No such parameter: %s.\n", key)
-
-					}
-				} else {
-					// 丢弃没有类型的不完整信息
-					if len(message.Type) > 0 {
-						msgChan <- message
-						message = Message{Status: MPending}
-					}
-				}
-			}
-			line = split[len(split)-1]
-		}
-	}()
-	return msgChan
-}
-
-func EncodeMessage(message Message) []byte {
-	list := []string{
-		PRequestType, Separator, message.Type, Delim}
-	if len(message.AppID) > 0 {
-		list = append(list, PAppID, Separator, message.AppID, Delim)
-	}
-	if len(message.MsgId) > 0 {
-		list = append(list, PMsgId, Separator, message.MsgId, Delim)
-	}
-	header := strings.Join(list, "")
-	content := append([]byte(PContent+Separator), message.Content...)
-	return append(append([]byte(header), content...), []byte(End)...)
-}
-
-/**
-	Recipient register
- */
-func recipientRegister(message Message) error {
-	consumer := RecipientInfo{}
-	err := json.Unmarshal(message.Content, &consumer)
-	if err != nil {
-		return InvalidParameters{Content: string(message.Content)}
-	}
-
-	return SaveRecipientInfo(consumer)
-}
-
-/**
-	Recipient ack
- */
-func ack(message Message) error {
-	return DeleteMessage(message.MsgId)
-}
-
-/**
-	Recipient reject
- */
-func reject(message Message) error {
-	return processRejectedMsg(message.MsgId)
-}
-
-/**
-	Recipient process error, entry dl-queue
- */
-func msgError(message Message) error {
-	return DeadLetterEnqueue(message.MsgId)
-}
-
-func arrive(message Message) error {
-	return UpdateMessageStatus(message.MsgId, MArrived)
-}
-
-func saveMessage(message Message) (string, error) {
-	err := MessageEnqueue(message)
-	switch err.(type) {
-	case MsgAlreadyExists:
-		return err.Error(), nil
-	case nil:
-		return "Message enqueue successful", nil
-	default:
-		return "Message enqueue failed.", err
-	}
-}
