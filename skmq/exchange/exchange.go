@@ -1,4 +1,4 @@
-package skmq
+package exchange
 
 import (
 	"strings"
@@ -6,6 +6,9 @@ import (
 	"net"
 	"time"
 	"bytes"
+	"github.com/sikong-mq/skmq/process"
+	"github.com/sikong-mq/skmq/skerr"
+	"github.com/sikong-mq/skmq/base"
 )
 
 
@@ -13,10 +16,10 @@ import (
 	遍历一次所有的Recipients，将失联的标记为Lost
  */
 func CheckRecipientsAvailable() {
-	apps := GetApps()
-	for i := range GetApps() {
+	apps := process.GetApps()
+	for i := range process.GetApps() {
 		appId := apps[i]
-		recipients, err := FindRecipients(appId)
+		recipients, err := process.FindRecipients(appId)
 		if err != nil {
 			Warn.Println(err)
 			continue
@@ -24,15 +27,15 @@ func CheckRecipientsAvailable() {
 		for r := range recipients {
 			recipient := recipients[r]
 			address := fmt.Sprintf("%s:%s", recipient.Host, recipient.Port)
-			connect, err := net.DialTimeout("tcp", address, ConnectTimeOut)
+			connect, err := net.DialTimeout("tcp", address, base.ConnectTimeOut)
 			if err != nil {
 				Warn.Printf("Heartbeat: %s, %s\n", address, err.Error())
 			}
 			result := Heartbeat(connect)
 			Info.Printf("Heartbeat: %s, ack: %v\n", address, result)
 			if !result {
-				recipient.Status = Lost
-				err = UpdateRecipient(*recipient)
+				recipient.Status = base.Lost
+				err = process.UpdateRecipient(*recipient)
 				if err != nil {
 					Warn.Println(err)
 				}
@@ -51,21 +54,21 @@ func Heartbeat(connect net.Conn) bool {
 	}
 	defer connect.SetDeadline(time.Time{})
 
-	connect.SetWriteDeadline(time.Now().Add(ConnectTimeOut))
-	err := SendMessage(connect, []byte(PING))
+	connect.SetWriteDeadline(time.Now().Add(base.ConnectTimeOut))
+	err := process.SendMessage(connect, []byte(base.PING))
 	if err != nil {
 		return false
 	}
 
 	buf := make([]byte, 10)
-	connect.SetReadDeadline(time.Now().Add(ConnectTimeOut))
+	connect.SetReadDeadline(time.Now().Add(base.ConnectTimeOut))
 	read, err := connect.Read(buf)
-	if read < len(PONG) {
+	if read < len(base.PONG) {
 		Warn.Printf("Unexpected heartbeat response (%d) %s\n", read, buf[:read])
 		return false
 	}
 
-	return bytes.Equal([]byte(PONG), buf[:len(PONG)])
+	return bytes.Equal([]byte(base.PONG), buf[:len(base.PONG)])
 }
 
 /**
@@ -73,28 +76,28 @@ func Heartbeat(connect net.Conn) bool {
  */
 func ReplyHeartbeat(conn net.Conn) error {
 	defer conn.SetWriteDeadline(time.Time{})
-	content := []byte(PONG)
-	conn.SetWriteDeadline(time.Now().Add(ConnectTimeOut))
-	return SendMessage(conn, content)
+	content := []byte(base.PONG)
+	conn.SetWriteDeadline(time.Now().Add(base.ConnectTimeOut))
+	return process.SendMessage(conn, content)
 }
 
-func RecipientBalance(appId string) (*RecipientInfo, error) {
+func RecipientBalance(appId string) (*base.RecipientInfo, error) {
 
-	recipients, err := FindRecipients(appId)
+	recipients, err := process.FindRecipients(appId)
 	if err != nil {
 		return nil, err
 	}
 
-	recently, err := RecentlyAssignedRecord(appId)
+	recently, err := process.RecentlyAssignedRecord(appId)
 	if err != nil {
 		return nil, err
 	}
 
 	var value float64 = 0
-	var recipient *RecipientInfo
+	var recipient *base.RecipientInfo
 	for i := range recipients {
 		r := recipients[i]
-		if strings.Compare(Alive, r.Status) != 0 {
+		if strings.Compare(base.Alive, r.Status) != 0 {
 			continue
 		}
 		weight := r.Weight + 1
@@ -125,7 +128,7 @@ func DeliveryMessage(appId string, content []byte) (net.Conn, error) {
 		}
 		address := recipient.Host + ":" + recipient.Port
 		Info.Println("Delivery target:", address)
-		conn, err = net.DialTimeout("tcp", address, ConnectTimeOut)
+		conn, err = net.DialTimeout("tcp", address, base.ConnectTimeOut)
 		if err != nil {
 			RemoveLostRecipient(*recipient)
 			conn = nil
@@ -135,11 +138,11 @@ func DeliveryMessage(appId string, content []byte) (net.Conn, error) {
 	}
 
 	if conn == nil {
-		err := NoneAvailableRecipient{AppId: appId}
+		err := skerr.NoneAvailableRecipient{AppId: appId}
 		return nil, err
 	}
 
-	err := WriteBuffer(conn, content)
+	err := process.WriteBuffer(conn, content)
 	if err != nil {
 		return nil, err
 	}
@@ -149,9 +152,9 @@ func DeliveryMessage(appId string, content []byte) (net.Conn, error) {
 /**
 	避免阻塞
  */
-func RemoveLostRecipient(recipient RecipientInfo) {
+func RemoveLostRecipient(recipient base.RecipientInfo) {
 	go func() {
-		recipient.Status = Lost
-		UpdateRecipient(recipient)
+		recipient.Status = base.Lost
+		process.UpdateRecipient(recipient)
 	}()
 }
