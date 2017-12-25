@@ -12,6 +12,11 @@ import (
 )
 
 func main() {
+	LoadConf()
+	skmq.OpenServer()
+}
+
+func LoadConf() {
 	confPath := flag.String("conf", base.DefaultConf,
 		"The path of queue config.")
 	dbConfPath := flag.String("dbconf", base.DefaultDBConf, "The path of redis config file")
@@ -23,7 +28,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer confFile.Close()
-	loadConf(confFile, process.Configuration)
+	readJson(confFile, process.Configuration)
 	res, _ := json.Marshal(process.Configuration)
 	fmt.Printf("config   : %s\n", res)
 
@@ -34,16 +39,13 @@ func main() {
 		fmt.Printf("%s\n", res)
 	} else {
 		defer dbConfFile.Close()
-		loadConf(dbConfFile, process.DBConfiguration)
+		readJson(dbConfFile, process.DBConfiguration)
 		res, _ := json.Marshal(process.DBConfiguration)
 		fmt.Printf("db config: %s\n", res)
 	}
-
-	skmq.OpenServer()
-
 }
 
-func loadConf(file *os.File, v interface{})  {
+func readJson(file *os.File, v interface{})  {
 	byteArray, err := ioutil.ReadAll(file)
 	if err != nil {
 		panic(err)

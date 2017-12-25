@@ -197,7 +197,8 @@ func broadcastConnection(conn net.Conn, message base.Message)  {
 
 }
 
-// TODO Should use it to process expired messages.
 func processDeadLetter(message base.Message) {
-	process.DeleteMessage(message.MsgId)
+
+	DLHandler(message)
+
 }
