@@ -1,4 +1,4 @@
-package skmq
+package base
 
 import "time"
 
@@ -11,6 +11,7 @@ const (
 	KHost  = "host"
 	KPort  = "port"
 	KStatus = "status"
+	KType = "type"
 	KContent = "content"
 	KRetried = "retried"
 	KWeight = "weight"

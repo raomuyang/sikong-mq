@@ -1,9 +1,10 @@
-package skmq
+package process
 
 import (
 	"net"
 	"bufio"
 	"io"
+	"github.com/sikong-mq/skmq/base"
 )
 
 const (
@@ -12,8 +13,11 @@ const (
 	CHUNK   = 1 << 13
 )
 
+/**
+	Send stream end with `\r\n\r\n`
+ */
 func SendMessage(conn net.Conn, buf []byte) (error) {
-	buf = append(buf, []byte(End)...)
+	buf = append(buf, []byte(base.End)...)
 	return WriteBuffer(conn, buf)
 }
 

@@ -1,22 +1,23 @@
-package skmq
+package process
 
 import (
 	"fmt"
 	"testing"
 	"bytes"
 	"strings"
+	"github.com/sikong-mq/skmq/base"
 )
 
 var (
 	content = []byte("This is content")
-	testMsg = Message{
+	testMsg = base.Message{
 		MsgId: "Test-msg-id",
 		AppID: "test-app-id",
-		Type: TopicMsg,
+		Type: base.TopicMsg,
 		Content: content}
 )
 
-func testInvokeDecodeMessage() []Message {
+func testInvokeDecodeMessage() []base.Message {
 	input := make(chan []byte, 4)
 	go func() {
 
@@ -38,7 +39,7 @@ func testInvokeDecodeMessage() []Message {
 	}()
 
 	msgChan := DecodeMessage(input)
-	var list []Message
+	var list []base.Message
 	for {
 		msg, ok:= <-msgChan
 		if !ok {

@@ -5,14 +5,21 @@ import (
 	"fmt"
 	"os"
 	"github.com/sikong-mq/skmq"
+	"github.com/sikong-mq/skmq/base"
 	"encoding/json"
 	"io/ioutil"
+	"github.com/sikong-mq/skmq/process"
 )
 
 func main() {
-	confPath := flag.String("conf", skmq.DefaultConf,
+	LoadConf()
+	skmq.OpenServer()
+}
+
+func LoadConf() {
+	confPath := flag.String("conf", base.DefaultConf,
 		"The path of queue config.")
-	dbConfPath := flag.String("dbconf", skmq.DefaultDBConf, "The path of redis config file")
+	dbConfPath := flag.String("dbconf", base.DefaultDBConf, "The path of redis config file")
 	flag.Parse()
 
 	confFile, err := os.Open(*confPath)
@@ -21,27 +28,24 @@ func main() {
 		os.Exit(1)
 	}
 	defer confFile.Close()
-	loadConf(confFile, skmq.Configuration)
-	res, _ := json.Marshal(skmq.Configuration)
+	readJson(confFile, process.Configuration)
+	res, _ := json.Marshal(process.Configuration)
 	fmt.Printf("config   : %s\n", res)
 
 	dbConfFile, err := os.Open(*dbConfPath)
 	if err != nil {
 		fmt.Println("The redis configuration file was not found, use default config:")
-		res, _ := json.Marshal(skmq.DBConfiguration)
+		res, _ := json.Marshal(process.DBConfiguration)
 		fmt.Printf("%s\n", res)
 	} else {
 		defer dbConfFile.Close()
-		loadConf(dbConfFile, skmq.DBConfiguration)
-		res, _ := json.Marshal(skmq.DBConfiguration)
+		readJson(dbConfFile, process.DBConfiguration)
+		res, _ := json.Marshal(process.DBConfiguration)
 		fmt.Printf("db config: %s\n", res)
 	}
-
-	skmq.OpenServer()
-
 }
 
-func loadConf(file *os.File, v interface{})  {
+func readJson(file *os.File, v interface{})  {
 	byteArray, err := ioutil.ReadAll(file)
 	if err != nil {
 		panic(err)

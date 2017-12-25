@@ -1,6 +1,6 @@
 // A smooth rate limiter base in the token bucket algorithm
 
-package skmq
+package ratelimiter
 
 import (
 	"time"

@@ -1,25 +1,27 @@
 package main
 
 import (
-	"github.com/sikong-mq/skmq"
 	"net"
 	"fmt"
 	"time"
+	"github.com/sikong-mq/skmq/base"
+	"github.com/sikong-mq/skmq/process"
+	"github.com/sikong-mq/skmq/exchange"
 )
 
 func main() {
 	content := []byte("Content ")
 
-	testMsg1 := skmq.Message{
+	testMsg1 := base.Message{
 		MsgId:   "Test-msg-id-1",
 		AppID:   "test-app-id",
-		Type:    skmq.TopicMsg,
+		Type:    base.QueueMsg,
 		Content: append(content, []byte("- Msg-1")...)}
 
-	testMsg2 := skmq.Message{
+	testMsg2 := base.Message{
 		MsgId:   "Test-msg-id-2",
 		AppID:   "test-app-id",
-		Type:    skmq.TopicMsg,
+		Type:    base.TopicMsg,
 		Content: append(content, []byte("- Msg-2")...)}
 
 	conn, err := net.Dial("tcp", "127.0.0.1:1734")
@@ -28,11 +30,11 @@ func main() {
 	}
 	defer conn.Close()
 
-	pong := skmq.Heartbeat(conn)
+	pong := exchange.Heartbeat(conn)
 	fmt.Println("Response:", pong)
 
 	go func() {
-		c := skmq.ReadStream(conn)
+		c := process.ReadStream(conn)
 		for {
 			bytes, ok := <-c
 			if !ok {
@@ -44,9 +46,9 @@ func main() {
 	}()
 
 
-	skmq.SendMessage(conn, skmq.EncodeMessage(testMsg1))
+	process.SendMessage(conn, process.EncodeMessage(testMsg1))
 
-	skmq.SendMessage(conn, skmq.EncodeMessage(testMsg2))
+	process.SendMessage(conn, process.EncodeMessage(testMsg2))
 
 	time.Sleep(30 * time.Second)
 }

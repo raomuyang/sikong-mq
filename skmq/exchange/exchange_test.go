@@ -1,10 +1,11 @@
-package skmq
+package exchange
 
 import (
 	"testing"
 	"net"
 	"strings"
 	"fmt"
+	"github.com/sikong-mq/skmq/base"
 )
 
 var (
@@ -17,8 +18,8 @@ func TestHeartBeta(t *testing.T) {
 		buf := make([]byte, 10)
 		read, _ := conn.Read(buf)
 		t.Log(fmt.Sprintf("Readed(%d): %s", read, buf[:read]))
-		val := string(buf[:len(PING)])
-		if strings.Compare(val, PING) != 0 {
+		val := string(buf[:len(base.PING)])
+		if strings.Compare(val, base.PING) != 0 {
 			t.Error("Not heartbeat package: " + val)
 			return
 		}

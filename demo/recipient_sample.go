@@ -1,13 +1,15 @@
 package main
 
 import (
-	"github.com/sikong-mq/skmq"
 	"encoding/json"
 	"fmt"
 	"net"
+	"github.com/sikong-mq/skmq/base"
+	"github.com/sikong-mq/skmq/process"
+	"github.com/sikong-mq/skmq/exchange"
 )
 
-var recipient = skmq.RecipientInfo{
+var recipient = base.RecipientInfo{
 	RecipientId:   "localtest",
 	ApplicationId: "test-app-id",
 	Host:          "127.0.0.1",
@@ -29,7 +31,7 @@ func main() {
 			continue
 		}
 
-		msgChan := skmq.DecodeMessage(skmq.ReadStream(c))
+		msgChan := process.DecodeMessage(process.ReadStream(c))
 		go func() {
 			for {
 				msg, ok := <- msgChan
@@ -38,12 +40,12 @@ func main() {
 				}
 				fmt.Printf("Received: %v, content: %s \n", msg, msg.Content)
 				switch msg.Type {
-				case skmq.PING:
-					skmq.ReplyHeartbeat(c)
-				case skmq.MPush:
-					respMsg := skmq.Message{MsgId: msg.MsgId, Type: skmq.MAckMsg}
-					skmq.SendMessage(c, skmq.EncodeMessage(respMsg))
-				case skmq.MResponse:
+				case base.PING:
+					exchange.ReplyHeartbeat(c)
+				case base.MPush:
+					respMsg := base.Message{MsgId: msg.MsgId, Type: base.MAckMsg}
+					process.SendMessage(c, process.EncodeMessage(respMsg))
+				case base.MResponse:
 					fmt.Printf("This is response: %v\n", msg)
 				default:
 
@@ -59,8 +61,8 @@ func register()  {
 		panic(err)
 	}
 
-	msg := skmq.Message{
-		Type: skmq.RegisterMsg,
+	msg := base.Message{
+		Type: base.RegisterMsg,
 		Content: content}
 
 	conn, err := net.Dial("tcp", "127.0.0.1:1734")
@@ -69,7 +71,7 @@ func register()  {
 	}
 	defer conn.Close()
 
-	err = skmq.SendMessage(conn, skmq.EncodeMessage(msg))
+	err = process.SendMessage(conn, process.EncodeMessage(msg))
 	buf := make([]byte, 1024)
 	read, err := conn.Read(buf)
 	if err != nil {
