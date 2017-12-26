@@ -198,7 +198,5 @@ func broadcastConnection(conn net.Conn, message base.Message)  {
 }
 
 func processDeadLetter(message base.Message) {
-
-	DLHandler(message)
-
+	deadLetterHandler.Process(message)
 }

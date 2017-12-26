@@ -2,10 +2,23 @@ package skmq
 
 import (
 	"github.com/sikong-mq/skmq/base"
+	"github.com/sikong-mq/skmq/process"
 )
 
-type DeadLetterHandlerFunc func(message base.Message)
+type DeadLetterHandler interface{
+	Process(message base.Message)
+}
 
-func SetDeadLetterHander(handlerFunc DeadLetterHandlerFunc)  {
-	DLHandler = handlerFunc
+type DefaultDeadLetterHandler struct{}
+
+func (handler *DefaultDeadLetterHandler) Process(message base.Message)  {
+	Info.Printf("Process dead letter via default handler: %v \n", message)
+	err := process.DeleteMessage(message.MsgId)
+	if err != nil {
+		Warn.Printf("Delete dead letter failed, message: " + message.MsgId)
+	}
+}
+
+func SetDeadLetterHandler(handler DeadLetterHandler)  {
+	deadLetterHandler = handler
 }

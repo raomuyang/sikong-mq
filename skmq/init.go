@@ -2,7 +2,6 @@ package skmq
 
 import (
 	"github.com/sikong-mq/skmq/process"
-	"github.com/sikong-mq/skmq/base"
 )
 
 var (
@@ -13,14 +12,10 @@ var (
 )
 
 var (
-	DLHandler DeadLetterHandlerFunc
+	deadLetterHandler DeadLetterHandler
 )
 
 func init() {
-	DLHandler = func(message base.Message) {
-		err := process.DeleteMessage(message.MsgId)
-		if err != nil {
-			Warn.Printf("Delete dead letter failed, message: " + message.MsgId)
-		}
-	}
+	v := interface{}(&DefaultDeadLetterHandler{})
+	deadLetterHandler = v.(DeadLetterHandler)
 }
