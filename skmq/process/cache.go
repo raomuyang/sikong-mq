@@ -266,6 +266,8 @@ func DeleteMessage(msgId string) error {
 	if err != nil {
 		return skerr.UnknownDBOperationException{Detail: "Remove from message retry set: " + err.Error()}
 	}
+
+	Locker.Unlock(msgId + base.MSaved)
 	return nil
 }
 
@@ -289,7 +291,7 @@ func MessageEnqueue(message base.Message) error {
 	dbConn := Pool.Get()
 
 	// 抛弃已存在的message
-	result, err := Locker.TryLock(message.MsgId)
+	result, err := Locker.TryLock(message.MsgId + base.MSaved)
 	//result, err := redis.String(dbConn.Do("HGET", message.MsgId, base.KStatus))
 	if !result {
 		return skerr.MsgAlreadyExists{MsgId: message.MsgId}
