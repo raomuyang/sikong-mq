@@ -32,6 +32,7 @@ func schedule() {
 
 func normalLetterSort(deliveryQueue chan<- base.Message, waitGroup sync.WaitGroup) {
 
+	backoff := base.Backoff{}
 	// Msg dequeue
 	for {
 		if stop {
@@ -45,16 +46,20 @@ func normalLetterSort(deliveryQueue chan<- base.Message, waitGroup sync.WaitGrou
 			continue
 		}
 		if msg == nil {
+			t := backoff.Increase()
+			time.Sleep(t)
+			Trace.Printf("No message, it will be retried after %s", t)
 			continue
 		}
+		backoff.Reset()
 		deliveryQueue <- *msg
 	}
 
 }
 
 
-
 func retryLetterSort(deliveryQueue chan<- base.Message, waitGroup sync.WaitGroup)  {
+	backoff := base.Backoff{}
 	// retry-msg dequeue
 	for {
 		if stop {
@@ -68,14 +73,17 @@ func retryLetterSort(deliveryQueue chan<- base.Message, waitGroup sync.WaitGroup
 			continue
 		}
 		if msg == nil {
-			time.Sleep(30 * time.Second)
+			t := backoff.Increase()
+			time.Sleep(t)
 			continue
 		}
+		backoff.Reset()
 		deliveryQueue <- *msg
 	}
 }
 
 func deadLetterSort(dlQueue chan<- base.Message)  {
+	backoff := base.Backoff{}
 	// dl-msg dequeue
 	for {
 		if stop {
@@ -89,9 +97,11 @@ func deadLetterSort(dlQueue chan<- base.Message)  {
 			continue
 		}
 		if msg == nil {
-			time.Sleep(60 * time.Second)
+			t := backoff.Increase()
+			time.Sleep(t)
 			continue
 		}
+		backoff.Reset()
 		dlQueue <- *msg
 	}
 }

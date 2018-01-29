@@ -75,6 +75,7 @@ const (
 	Message status value
  */
 const (
+	MSaved	 = "-saved"
 	MPending = "pending"
 	MSending = "sending"
 	MArrived = "arrived"

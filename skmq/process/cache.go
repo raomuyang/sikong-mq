@@ -12,12 +12,14 @@ import (
 
 var (
 	Pool      *redis.Pool
+	Locker	  *RedisLock
 )
 
 
 func init() {
 	Pool = &redis.Pool{
 	}
+	Locker = &RedisLock{Pool:Pool}
 }
 
 func InitDBConfig(config base.DBConfig) *redis.Pool {
@@ -57,7 +59,6 @@ func InitDBConfig(config base.DBConfig) *redis.Pool {
 		}
 		return err
 	}
-
 	return Pool
 }
 
@@ -265,6 +266,8 @@ func DeleteMessage(msgId string) error {
 	if err != nil {
 		return skerr.UnknownDBOperationException{Detail: "Remove from message retry set: " + err.Error()}
 	}
+
+	Locker.Unlock(msgId + base.MSaved)
 	return nil
 }
 
@@ -288,9 +291,10 @@ func MessageEnqueue(message base.Message) error {
 	dbConn := Pool.Get()
 
 	// 抛弃已存在的message
-	result, err := redis.String(dbConn.Do("HGET", message.MsgId, base.KStatus))
-	if len(result) != 0 {
-		return skerr.MsgAlreadyExists{MsgId: message.MsgId, Status: result}
+	result, err := Locker.TryLock(message.MsgId + base.MSaved)
+	//result, err := redis.String(dbConn.Do("HGET", message.MsgId, base.KStatus))
+	if !result {
+		return skerr.MsgAlreadyExists{MsgId: message.MsgId}
 	}
 	_, err = dbConn.Do("HMSET",
 		message.MsgId,
@@ -302,11 +306,13 @@ func MessageEnqueue(message base.Message) error {
 	Trace.Printf("message enqueue, messageId: %s, %s: %s, type: %s\n",
 		message.MsgId, base.KAppId, message.AppID, message.Type)
 	if err != nil {
+		Locker.Unlock(message.MsgId)
 		return skerr.UnknownDBOperationException{Detail: "Set message exception: " + err.Error()}
 	}
 
 	_, err = dbConn.Do("LPUSH", base.KMessageQueue, message.MsgId)
 	if err != nil {
+		Locker.Unlock(message.MsgId)
 		return skerr.UnknownDBOperationException{Detail: "Message enqueue failed: " + err.Error()}
 	}
 
@@ -364,6 +370,7 @@ func MessageDequeue(queue string) (*base.Message, error) {
 		}
 	}
 
+	Locker.Unlock(msgId)
 	return msg, nil
 }
 
@@ -380,6 +387,17 @@ func MessageEntryRetryQueue(msgId string) (*base.Message, error) {
 	if msg.Retried+1 > Configuration.RetryTimes {
 		return nil, skerr.MessageDead{MsgId: msg.MsgId, Status: msg.Status, Retried: msg.Retried}
 	}
+
+	// 避免多次入队列
+	result, err := Locker.TryLock(msgId)
+	if err != nil {
+		return nil, skerr.UnknownDBOperationException{Detail: "Lock resource failed: " + err.Error()}
+	}
+	if !result {
+		return msg, nil
+	}
+
+
 	dbConn := Pool.Get()
 	_, err = dbConn.Do("HINCRBY", msgId, base.KRetried, 1)
 	if err != nil {
@@ -456,3 +474,58 @@ func GetApps() []string {
 	list, _ := redis.Strings(Pool.Get().Do("SMEMBERS", base.KAppSet))
 	return list
 }
+
+type RedisLock struct {
+	Pool       *redis.Pool
+	expireTime int
+	prefix     string
+
+}
+
+func (redisLock *RedisLock) TryLock(requestId string) (bool, error) {
+	dbConn := redisLock.Pool.Get()
+	rep, err := dbConn.Do("SET", redisLock.Prefix() + requestId, "Locked", "NX", "EX", redisLock.ExpireTime())
+	if err != nil {
+		return false, err
+	}
+
+	if rep == nil {
+		return false, nil
+	}
+	result, err := redis.String(rep, err)
+	if result == "OK" {
+		return true, nil
+	}
+	return false, err
+}
+
+
+func (redisLock *RedisLock) Unlock(requestId string) error {
+	dbConn := redisLock.Pool.Get()
+	_, err := dbConn.Do("DEL", redisLock.Prefix() + requestId)
+	return err
+}
+
+func (redisLock *RedisLock) ExpireTime() int {
+	if redisLock.expireTime == 0 {
+		// default one day
+		return 60 * 60 * 24
+	}
+	return redisLock.expireTime
+}
+
+func (redisLock *RedisLock) SetExpireTime(expireTime int) {
+	redisLock.expireTime = expireTime
+}
+
+func (redisLock *RedisLock) Prefix() string {
+	if len(redisLock.prefix) == 0 {
+		return "rds-lock-"
+	}
+	return redisLock.prefix
+}
+
+func (redisLock *RedisLock) SetPrefix(prefix string)  {
+	redisLock.prefix = prefix
+}
+
