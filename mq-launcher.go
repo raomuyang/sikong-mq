@@ -20,7 +20,7 @@ func main() {
 		http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", DebugPort), nil)
 	}()
 
-	process.LoggerSetup(nil, process.Configuration.LogLevel)
+	process.LoggerSetup(nil, skmq.Configuration.LogLevel)
 	skmq.OpenServer()
 }
 
@@ -30,22 +30,22 @@ func LoadConf() {
 	dbConfPath := flag.String("dbconf", base.DefaultDBConf, "The path of redis config file")
 	flag.Parse()
 
-	err := base.UnmarshalJsonFile(process.Configuration, *confPath)
+	err := base.UnmarshalJsonFile(skmq.Configuration, *confPath)
 	if err != nil {
 		fmt.Printf("Error configuration: %s\n", *confPath)
 		os.Exit(1)
 	}
-	res, _ := json.Marshal(process.Configuration)
+	res, _ := json.Marshal(skmq.Configuration)
 	fmt.Printf("config   : %s\n", res)
 
 
-	err = base.UnmarshalJsonFile(process.DBConfiguration, *dbConfPath)
+	err = base.UnmarshalJsonFile(skmq.DBConfiguration, *dbConfPath)
 	if err != nil {
 		fmt.Println("The redis configuration was not found, use default config:")
-		res, _ := json.Marshal(process.DBConfiguration)
+		res, _ := json.Marshal(skmq.DBConfiguration)
 		fmt.Printf("%s\n", res)
 	} else {
-		res, _ := json.Marshal(process.DBConfiguration)
+		res, _ := json.Marshal(skmq.DBConfiguration)
 		fmt.Printf("db config: %s\n", res)
 	}
 }

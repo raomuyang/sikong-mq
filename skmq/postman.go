@@ -1,13 +1,13 @@
 package skmq
 
 import (
-	"github.com/sikong-mq/skmq/base"
 	"sync"
-	"github.com/sikong-mq/skmq/process"
 	"time"
-	"github.com/sikong-mq/skmq/exchange"
 	"net"
 	"fmt"
+
+	"github.com/sikong-mq/skmq/base"
+	"github.com/sikong-mq/skmq/process"
 )
 
 func schedule() {
@@ -39,7 +39,7 @@ func normalLetterSort(deliveryQueue chan<- base.Message, waitGroup sync.WaitGrou
 			waitGroup.Done()
 			break
 		}
-		msg, err := process.MsgCache.MessageDequeue(base.KMessageQueue)
+		msg, err := msgCache.MessageDequeue(base.KMessageQueue)
 		if err != nil {
 			Warn.Println("Scheduler: dequeue error, " + err.Error())
 			time.Sleep(10 * time.Second)
@@ -66,7 +66,7 @@ func retryLetterSort(deliveryQueue chan<- base.Message, waitGroup sync.WaitGroup
 			waitGroup.Done()
 			break
 		}
-		msg, err := process.MsgCache.MessageDequeue(base.KMessageRetryQueue)
+		msg, err := msgCache.MessageDequeue(base.KMessageRetryQueue)
 		if err != nil {
 			Warn.Println("Scheduler: retry-msg dequeue error, " + err.Error())
 			time.Sleep(15 * time.Second)
@@ -90,7 +90,7 @@ func deadLetterSort(dlQueue chan<- base.Message)  {
 			close(dlQueue)
 			break
 		}
-		msg, err := process.MsgCache.MessageDequeue(base.KDeadLetterQueue)
+		msg, err := msgCache.MessageDequeue(base.KDeadLetterQueue)
 		if err != nil {
 			Warn.Println("Scheduler: dl-msg dequeue error, " + err.Error())
 			time.Sleep(30 * time.Second)
@@ -140,7 +140,7 @@ func topic(message base.Message)  {
 	message.Type = base.MPush
 
 	go func() {
-		channel, err := exchange.BroadcastConnect(message.AppID)
+		channel, err := dataExchange.BroadcastConnect(message.AppID)
 		if err != nil {
 			Warn.Printf("Get broadcast connects failed: %v", err)
 			return
@@ -165,7 +165,7 @@ func queue(message base.Message)  {
 			}
 		}()
 
-		conn, err := exchange.Unicast(message.AppID, process.EncodeMessage(message))
+		conn, err := dataExchange.Unicast(message.AppID, process.EncodeMessage(message))
 		remote := "nil"
 		if conn != nil {
 			remote = fmt.Sprintf("%v", conn.RemoteAddr())
@@ -178,7 +178,7 @@ func queue(message base.Message)  {
 			return
 		}
 		conn.SetReadDeadline(time.Now().Add(base.ConnectTimeOut))
-		reply(conn, true, process.HandleMessage(process.DecodeMessage(process.ReadStream(conn))))
+		reply(conn, true, msgHandler.HandleMessage(process.DecodeMessage(process.ReadStream(conn))))
 	}()
 }
 
@@ -186,12 +186,12 @@ func broadcastConnection(conn net.Conn, message base.Message)  {
 	logInfo := fmt.Sprintf("Delivery: broadcast message (%s/%s) remote (%s)",
 		message.AppID, message.MsgId, conn.RemoteAddr())
 	Info.Println(logInfo)
-	err := exchange.DeliveryContent(conn, process.EncodeMessage(message))
+	err := dataExchange.DeliveryContent(conn, process.EncodeMessage(message))
 	if err != nil {
 		Warn.Printf("Delivery: ")
 	}
 	conn.SetReadDeadline(time.Now().Add(base.ConnectTimeOut))
-	reply(conn, true, process.HandleMessage(process.DecodeMessage(process.ReadStream(conn))))
+	reply(conn, true, msgHandler.HandleMessage(process.DecodeMessage(process.ReadStream(conn))))
 
 }
 

@@ -11,15 +11,33 @@ import (
 	"github.com/sikong-mq/skmq/base"
 )
 
+type Exchange interface{
+	CheckRecipientsAvailable()
+	Heartbeat(connect net.Conn) bool
+	ReplyHeartbeat(conn net.Conn) error
+	RecipientBalance(appId string) (*base.RecipientInfo, error)
+	Unicast(appId string, content []byte) (net.Conn, error)
+	BroadcastConnect(appId string) (<-chan net.Conn, error)
+	DeliveryContent(conn net.Conn, content []byte) error
+	RemoveLostRecipient(recipient base.RecipientInfo)
+}
+
+type DataExchange struct {
+	MsgCache process.Cache
+}
+
+func GetExchange(msgCache process.Cache) Exchange {
+	return &DataExchange{MsgCache:msgCache}
+}
 
 /**
 	遍历一次所有的Recipients，将失联的标记为Lost
  */
-func CheckRecipientsAvailable() {
-	apps := process.MsgCache.GetApps()
-	for i := range process.MsgCache.GetApps() {
+func (exchange *DataExchange) CheckRecipientsAvailable() {
+	apps := exchange.MsgCache.GetApps()
+	for i := range exchange.MsgCache.GetApps() {
 		appId := apps[i]
-		recipients, err := process.MsgCache.FindRecipients(appId)
+		recipients, err := exchange.MsgCache.FindRecipients(appId)
 		if err != nil {
 			Warn.Println(err)
 			continue
@@ -31,11 +49,11 @@ func CheckRecipientsAvailable() {
 			if err != nil {
 				Warn.Printf("Heartbeat: %s, %s\n", address, err.Error())
 			}
-			result := Heartbeat(connect)
+			result := exchange.Heartbeat(connect)
 			Trace.Printf("Heartbeat: %s, ack: %v\n", address, result)
 			if !result {
 				recipient.Status = base.Lost
-				err = process.MsgCache.UpdateRecipient(*recipient)
+				err = exchange.MsgCache.UpdateRecipient(*recipient)
 				if err != nil {
 					Warn.Println(err)
 				}
@@ -48,7 +66,7 @@ func CheckRecipientsAvailable() {
 	发送一个心跳包，并检测是否正常返回
 	若超时或返回值不正确，则返回false
  */
-func Heartbeat(connect net.Conn) bool {
+func (exchange *DataExchange) Heartbeat(connect net.Conn) bool {
 	if connect == nil {
 		return false
 	}
@@ -74,21 +92,21 @@ func Heartbeat(connect net.Conn) bool {
 /**
 	发送一个8字节的心跳包
  */
-func ReplyHeartbeat(conn net.Conn) error {
+func (exchange *DataExchange) ReplyHeartbeat(conn net.Conn) error {
 	defer conn.SetWriteDeadline(time.Time{})
 	content := []byte(base.PONG)
 	conn.SetWriteDeadline(time.Now().Add(base.ConnectTimeOut))
 	return process.SendMessage(conn, content)
 }
 
-func RecipientBalance(appId string) (*base.RecipientInfo, error) {
+func (exchange *DataExchange) RecipientBalance(appId string) (*base.RecipientInfo, error) {
 
-	recipients, err := process.MsgCache.FindRecipients(appId)
+	recipients, err := exchange.MsgCache.FindRecipients(appId)
 	if err != nil {
 		return nil, err
 	}
 
-	recently, err := process.MsgCache.RecentlyAssignedRecord(appId)
+	recently, err := exchange.MsgCache.RecentlyAssignedRecord(appId)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +127,7 @@ func RecipientBalance(appId string) (*base.RecipientInfo, error) {
 		}
 	}
 	if recipient != nil {
-		process.MsgCache.UpdateRecipientAssigned(*recipient)
+		exchange.MsgCache.UpdateRecipientAssigned(*recipient)
 	}
 	return recipient, nil
 }
@@ -117,18 +135,18 @@ func RecipientBalance(appId string) (*base.RecipientInfo, error) {
 /**
 	从注册的接收方中挑选一台用于发送，并将建立的连接返回
  */
-func Unicast(appId string, content []byte) (net.Conn, error) {
+func (exchange *DataExchange) Unicast(appId string, content []byte) (net.Conn, error) {
 
 	var conn net.Conn
 	for {
-		recipient, err := RecipientBalance(appId)
+		recipient, err := exchange.RecipientBalance(appId)
 		if err != nil {
 			continue
 		}
 		if recipient == nil {
 			break
 		}
-		conn = getConnect(recipient)
+		conn = exchange.getConnect(recipient)
 		break
 
 	}
@@ -138,7 +156,7 @@ func Unicast(appId string, content []byte) (net.Conn, error) {
 		return nil, err
 	}
 
-	err := DeliveryContent(conn, content)
+	err := exchange.DeliveryContent(conn, content)
 	if err != nil {
 		return nil, err
 	}
@@ -149,10 +167,10 @@ func Unicast(appId string, content []byte) (net.Conn, error) {
 /**
 	Get broadcast connects
  */
-func BroadcastConnect(appId string) (<-chan net.Conn, error) {
+func (exchange *DataExchange) BroadcastConnect(appId string) (<-chan net.Conn, error) {
 
 	connects := make(chan net.Conn)
-	recipients, err := process.MsgCache.FindRecipients(appId)
+	recipients, err := exchange.MsgCache.FindRecipients(appId)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +181,7 @@ func BroadcastConnect(appId string) (<-chan net.Conn, error) {
 			if strings.Compare(base.Alive, r.Status) != 0 {
 				continue
 			}
-			conn := getConnect(r)
+			conn := exchange.getConnect(r)
 			if conn == nil {
 				continue
 			}
@@ -173,29 +191,29 @@ func BroadcastConnect(appId string) (<-chan net.Conn, error) {
 	return connects, nil
 }
 
-func DeliveryContent(conn net.Conn, content []byte) error {
+func (exchange *DataExchange) DeliveryContent(conn net.Conn, content []byte) error {
 	return process.WriteBuffer(conn, content)
 }
 
 /**
 	避免阻塞
  */
-func RemoveLostRecipient(recipient base.RecipientInfo) {
+func (exchange *DataExchange) RemoveLostRecipient(recipient base.RecipientInfo) {
 	go func() {
 		recipient.Status = base.Lost
-		process.MsgCache.UpdateRecipient(recipient)
+		exchange.MsgCache.UpdateRecipient(recipient)
 	}()
 }
 
 /**
 	Get connect by recipient info
  */
-func getConnect(recipient *base.RecipientInfo) net.Conn {
+func (exchange *DataExchange) getConnect(recipient *base.RecipientInfo) net.Conn {
 	address := recipient.Host + ":" + recipient.Port
 	Info.Println("Connect target:", address)
 	conn, err := net.DialTimeout("tcp", address, base.ConnectTimeOut)
 	if err != nil {
-		RemoveLostRecipient(*recipient)
+		exchange.RemoveLostRecipient(*recipient)
 		return nil
 	}
 	return conn

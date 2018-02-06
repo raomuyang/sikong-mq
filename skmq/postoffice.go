@@ -25,8 +25,11 @@ var (
 
 
 func OpenServer() {
-	process.InitDBConfig(*process.DBConfiguration)
-	laddr := process.Configuration.ListenerHost + ":" + process.Configuration.ListenerPort
+	msgCache = process.InitDBConfig(*DBConfiguration, Configuration.RetryTimes)
+	msgHandler = process.GetMessageHandler(msgCache)
+	dataExchange = exchange.GetExchange(msgCache)
+
+	laddr := Configuration.ListenerHost + ":" + Configuration.ListenerPort
 	Info.Println("Server: open message queue server, listen " + laddr)
 
 	go schedule()
@@ -40,7 +43,7 @@ func OpenServer() {
 	}
 	defer listener.Close()
 
-	rateLimiter, err := ratelimiter.CreateTokenBucket(process.Configuration.Rate)
+	rateLimiter, err := ratelimiter.CreateTokenBucket(Configuration.Rate)
 	if err != nil {
 		panic(err)
 	}
@@ -72,7 +75,7 @@ func StopServer() {
 
 func heartbeatCyclically() {
 	for {
-		exchange.CheckRecipientsAvailable()
+		dataExchange.CheckRecipientsAvailable()
 		time.Sleep(time.Minute)
 	}
 }
@@ -85,24 +88,24 @@ func scanTimeoutTasks() {
 			break
 		}
 
-		records, err := process.MsgCache.MessagePostRecords()
+		records, err := msgCache.MessagePostRecords()
 		if err != nil {
 			Warn.Println("Scanner: get records error, " + err.Error())
 			time.Sleep(30 * time.Second)
 			continue
 		}
 		for msgId := range records {
-			diff := (time.Now().UnixNano() - int64(records[msgId])) - int64(process.Configuration.ACKTimeout)*int64(time.Millisecond)
+			diff := (time.Now().UnixNano() - int64(records[msgId])) - int64(Configuration.ACKTimeout)*int64(time.Millisecond)
 			if diff > 0 || -diff < int64(time.Second) {
 
-				_, err := process.MsgCache.MessageEntryRetryQueue(msgId)
+				_, err := msgCache.MessageEntryRetryQueue(msgId)
 				switch err.(type) {
 				case skerr.NoSuchMessage:
 					Warn.Println("Scheduler: warning, " + err.Error())
-					process.MsgCache.DeadLetterEnqueue(msgId)
+					msgCache.DeadLetterEnqueue(msgId)
 				case skerr.MessageDead:
 					Warn.Println("Scheduler: " + err.Error())
-					process.MsgCache.DeadLetterEnqueue(msgId)
+					msgCache.DeadLetterEnqueue(msgId)
 				case nil:
 					Info.Printf("Scheduler: %s will be retried \n", msgId)
 				default:
@@ -124,7 +127,7 @@ func receive(connect net.Conn) {
 				Err.Printf("%v\n", p)
 			}
 		}()
-		reply(connect, false, process.HandleMessage(process.DecodeMessage(process.ReadStream(connect))))
+		reply(connect, false, msgHandler.HandleMessage(process.DecodeMessage(process.ReadStream(connect))))
 	}()
 }
 
@@ -139,7 +142,7 @@ func reply(connect net.Conn, proactive bool, repChan <-chan base.Response) {
 		}
 		Trace.Printf("Reply: debug %v\n", response)
 		if strings.Compare(response.Status, base.PONG) == 0 {
-			exchange.ReplyHeartbeat(connect)
+			dataExchange.ReplyHeartbeat(connect)
 			Trace.Println("Reply: PONG")
 			continue
 		}

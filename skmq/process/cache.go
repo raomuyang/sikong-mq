@@ -10,13 +10,8 @@ import (
 	"github.com/sikong-mq/skmq/base"
 )
 
-var (
-	//pool      *redis.pool
-	MsgCache = &MessageCache{}
-	Locker	  *RedisLock
-)
 
-type Catch interface{
+type Cache interface{
 	SaveRecipientInfo(recipientInfo base.RecipientInfo) error
 	UpdateRecipient(recipientInfo base.RecipientInfo) error
 	FindRecipients(applicationId string) ([]*base.RecipientInfo, error)
@@ -37,15 +32,18 @@ type Catch interface{
 	AddApplication(appId string) error
 	GetApps() []string
 
+	Locker() *RedisLock
+
 }
 
 type MessageCache struct {
-	pool   *redis.Pool
-	locker *RedisLock
+	pool              *redis.Pool
+	locker            *RedisLock
+	messageRetryTimes int
 }
 
 
-func InitDBConfig(config base.DBConfig) Catch {
+func InitDBConfig(config base.DBConfig, messageRetryTimes int) Cache {
 
 	pool := &redis.Pool{
 	}
@@ -87,9 +85,12 @@ func InitDBConfig(config base.DBConfig) Catch {
 		return err
 	}
 
-	Locker = &RedisLock{Pool: pool}
-	MsgCache.pool = pool
-	MsgCache.locker = Locker
+	Locker := &RedisLock{Pool: pool}
+	MsgCache := &MessageCache{
+		pool:              pool,
+		locker:            Locker,
+		messageRetryTimes: messageRetryTimes}
+
 	return MsgCache
 }
 
@@ -429,7 +430,7 @@ func (cache *MessageCache) MessageEntryRetryQueue(msgId string) (*base.Message, 
 	if err != nil {
 		return nil, err
 	}
-	if msg.Retried+1 > Configuration.RetryTimes {
+	if msg.Retried+1 > cache.messageRetryTimes {
 		return nil, skerr.MessageDead{MsgId: msg.MsgId, Status: msg.Status, Retried: msg.Retried}
 	}
 
@@ -524,12 +525,17 @@ func (cache *MessageCache) GetApps() []string {
 	return list
 }
 
+func (cache *MessageCache) Locker() *RedisLock {
+	return cache.locker
+}
+
 type RedisLock struct {
 	Pool       *redis.Pool
 	expireTime int
 	prefix     string
 
 }
+
 
 func (redisLock *RedisLock) TryLock(requestId string) (bool, error) {
 	dbConn := redisLock.Pool.Get()
