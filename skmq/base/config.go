@@ -5,7 +5,7 @@ type MQConfig struct {
 	// The max retry times of message push to consumer
 	RetryTimes int `json:"retry_times"`
 
-	// Millisecond
+	// Millisecond, message ack timeout, enter to retry queue
 	ACKTimeout int `json:"ack_timeout"`
 
 	// A rate limiter will distributes permits at a configurable rate (n/second)

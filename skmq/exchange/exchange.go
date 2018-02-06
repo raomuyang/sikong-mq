@@ -32,7 +32,7 @@ func CheckRecipientsAvailable() {
 				Warn.Printf("Heartbeat: %s, %s\n", address, err.Error())
 			}
 			result := Heartbeat(connect)
-			Info.Printf("Heartbeat: %s, ack: %v\n", address, result)
+			Trace.Printf("Heartbeat: %s, ack: %v\n", address, result)
 			if !result {
 				recipient.Status = base.Lost
 				err = process.UpdateRecipient(*recipient)
@@ -116,7 +116,6 @@ func RecipientBalance(appId string) (*base.RecipientInfo, error) {
 
 /**
 	从注册的接收方中挑选一台用于发送，并将建立的连接返回
-	暂时只支持点到点的消息投递
  */
 func Unicast(appId string, content []byte) (net.Conn, error) {
 
