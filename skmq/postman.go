@@ -1,36 +1,47 @@
 package skmq
 
 import (
-	"github.com/sikong-mq/skmq/base"
 	"sync"
-	"github.com/sikong-mq/skmq/process"
 	"time"
-	"github.com/sikong-mq/skmq/exchange"
 	"net"
 	"fmt"
+
+	"github.com/sikong-mq/skmq/base"
+	"github.com/sikong-mq/skmq/process"
 )
 
-func schedule() {
-	deliveryQueue := make(chan base.Message, SendBuf)
-	dlQueue := make(chan base.Message, SendBuf)
+type Postman struct {
+	deliveryQueue   chan base.Message
+	deadLetterQueue chan base.Message
+	waitGroup 		sync.WaitGroup
+}
 
+func InitPostman() *Postman {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	go normalLetterSort(deliveryQueue, wg)
+	return &Postman{
+		deliveryQueue: make(chan base.Message, SendBuf),
+		deadLetterQueue: make(chan base.Message, SendBuf),
+		waitGroup: wg}
+}
 
-	go retryLetterSort(deliveryQueue, wg)
+func (postman *Postman) schedule() {
 
-	go deadLetterSort(dlQueue)
+	go postman.normalLetterSort(postman.deliveryQueue, postman.waitGroup)
 
-	go letterTransfer(deliveryQueue, dlQueue)
+	go postman.retryLetterSort(postman.deliveryQueue, postman.waitGroup)
 
-	wg.Wait()
-	close(deliveryQueue)
+	go postman.deadLetterSort(postman.deadLetterQueue)
+
+	go postman.letterTransfer(postman.deliveryQueue, postman.deadLetterQueue)
+
+	postman.waitGroup.Wait()
+	close(postman.deliveryQueue)
 }
 
 
-func normalLetterSort(deliveryQueue chan<- base.Message, waitGroup sync.WaitGroup) {
+func (postman *Postman) normalLetterSort(deliveryQueue chan<- base.Message, waitGroup sync.WaitGroup) {
 
 	backoff := base.Backoff{}
 	// Msg dequeue
@@ -39,7 +50,7 @@ func normalLetterSort(deliveryQueue chan<- base.Message, waitGroup sync.WaitGrou
 			waitGroup.Done()
 			break
 		}
-		msg, err := process.MessageDequeue(base.KMessageQueue)
+		msg, err := msgCache.MessageDequeue(base.KMessageQueue)
 		if err != nil {
 			Warn.Println("Scheduler: dequeue error, " + err.Error())
 			time.Sleep(10 * time.Second)
@@ -58,7 +69,7 @@ func normalLetterSort(deliveryQueue chan<- base.Message, waitGroup sync.WaitGrou
 }
 
 
-func retryLetterSort(deliveryQueue chan<- base.Message, waitGroup sync.WaitGroup)  {
+func (postman *Postman) retryLetterSort(deliveryQueue chan<- base.Message, waitGroup sync.WaitGroup)  {
 	backoff := base.Backoff{}
 	// retry-msg dequeue
 	for {
@@ -66,7 +77,7 @@ func retryLetterSort(deliveryQueue chan<- base.Message, waitGroup sync.WaitGroup
 			waitGroup.Done()
 			break
 		}
-		msg, err := process.MessageDequeue(base.KMessageRetryQueue)
+		msg, err := msgCache.MessageDequeue(base.KMessageRetryQueue)
 		if err != nil {
 			Warn.Println("Scheduler: retry-msg dequeue error, " + err.Error())
 			time.Sleep(15 * time.Second)
@@ -82,7 +93,7 @@ func retryLetterSort(deliveryQueue chan<- base.Message, waitGroup sync.WaitGroup
 	}
 }
 
-func deadLetterSort(dlQueue chan<- base.Message)  {
+func (postman *Postman) deadLetterSort(dlQueue chan<- base.Message)  {
 	backoff := base.Backoff{}
 	// dl-msg dequeue
 	for {
@@ -90,7 +101,7 @@ func deadLetterSort(dlQueue chan<- base.Message)  {
 			close(dlQueue)
 			break
 		}
-		msg, err := process.MessageDequeue(base.KDeadLetterQueue)
+		msg, err := msgCache.MessageDequeue(base.KDeadLetterQueue)
 		if err != nil {
 			Warn.Println("Scheduler: dl-msg dequeue error, " + err.Error())
 			time.Sleep(30 * time.Second)
@@ -106,41 +117,41 @@ func deadLetterSort(dlQueue chan<- base.Message)  {
 	}
 }
 
-func letterTransfer(deliveryQueue <-chan base.Message, dlQueue <-chan base.Message)  {
+func (postman *Postman) letterTransfer(deliveryQueue <-chan base.Message, dlQueue <-chan base.Message)  {
 	// msg delivery
 	for {
 
 		select {
 		case msg := <-deliveryQueue:
-			delivery(msg)
+			postman.delivery(msg)
 		case msg := <-dlQueue:
-			processDeadLetter(msg)
+			postman.processDeadLetter(msg)
 		}
 	}
 }
 
 // TODO Should distinguish between the topic and queue
-func delivery(message base.Message) {
+func (postman *Postman) delivery(message base.Message) {
 	Info.Printf("Delivery: (%s) message %s/%s \n",
 		message.Type, message.AppID, message.MsgId)
 	switch message.Type {
 	case base.QueueMsg:
 		Info.Printf("Queue message: %s \n", message.MsgId)
-		queue(message)
+		postman.queue(message)
 		break
 	case base.TopicMsg:
 		Info.Printf("Topic message: %s \n", message.MsgId)
-		topic(message)
+		postman.topic(message)
 	default:
 		Warn.Printf("None type: %s\n", message.MsgId)
 	}
 }
 
-func topic(message base.Message)  {
+func (postman *Postman) topic(message base.Message)  {
 	message.Type = base.MPush
 
 	go func() {
-		channel, err := exchange.BroadcastConnect(message.AppID)
+		channel, err := dataExchange.BroadcastConnect(message.AppID)
 		if err != nil {
 			Warn.Printf("Get broadcast connects failed: %v", err)
 			return
@@ -148,13 +159,13 @@ func topic(message base.Message)  {
 		for {
 			connect, ok := <- channel
 			if !ok {break}
-			go broadcastConnection(connect, message)
+			go postman.broadcastConnection(connect, message)
 
 		}
 	}()
 }
 
-func queue(message base.Message)  {
+func (postman *Postman) queue(message base.Message)  {
 	message.Type = base.MPush
 	go func() {
 		defer func() {
@@ -165,7 +176,7 @@ func queue(message base.Message)  {
 			}
 		}()
 
-		conn, err := exchange.Unicast(message.AppID, process.EncodeMessage(message))
+		conn, err := dataExchange.Unicast(message.AppID, process.EncodeMessage(message))
 		remote := "nil"
 		if conn != nil {
 			remote = fmt.Sprintf("%v", conn.RemoteAddr())
@@ -178,23 +189,23 @@ func queue(message base.Message)  {
 			return
 		}
 		conn.SetReadDeadline(time.Now().Add(base.ConnectTimeOut))
-		reply(conn, true, process.HandleMessage(process.DecodeMessage(process.ReadStream(conn))))
+		reply(conn, true, msgHandler.HandleMessage(process.DecodeMessage(process.ReadStream(conn))))
 	}()
 }
 
-func broadcastConnection(conn net.Conn, message base.Message)  {
+func (postman *Postman) broadcastConnection(conn net.Conn, message base.Message)  {
 	logInfo := fmt.Sprintf("Delivery: broadcast message (%s/%s) remote (%s)",
 		message.AppID, message.MsgId, conn.RemoteAddr())
 	Info.Println(logInfo)
-	err := exchange.DeliveryContent(conn, process.EncodeMessage(message))
+	err := dataExchange.DeliveryContent(conn, process.EncodeMessage(message))
 	if err != nil {
 		Warn.Printf("Delivery: ")
 	}
 	conn.SetReadDeadline(time.Now().Add(base.ConnectTimeOut))
-	reply(conn, true, process.HandleMessage(process.DecodeMessage(process.ReadStream(conn))))
+	reply(conn, true, msgHandler.HandleMessage(process.DecodeMessage(process.ReadStream(conn))))
 
 }
 
-func processDeadLetter(message base.Message) {
+func (postman *Postman) processDeadLetter(message base.Message) {
 	deadLetterHandler.Process(message)
 }
