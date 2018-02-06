@@ -108,25 +108,13 @@ func deadLetterSort(dlQueue chan<- base.Message)  {
 
 func letterTransfer(deliveryQueue <-chan base.Message, dlQueue <-chan base.Message)  {
 	// msg delivery
-	quit := false
 	for {
-		if quit {
-			Trace.Println("Scheduler: stop.")
-			break
-		}
 
 		select {
-		case msg, ok := <-deliveryQueue:
-			if !ok {
-				quit = true
-				break
-			}
+		case msg := <-deliveryQueue:
 			delivery(msg)
-		case msg, ok := <-dlQueue:
-			if ok {
-				processDeadLetter(msg)
-			}
-		default:
+		case msg := <-dlQueue:
+			processDeadLetter(msg)
 		}
 	}
 }

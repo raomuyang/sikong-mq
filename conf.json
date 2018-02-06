@@ -3,5 +3,6 @@
   "ack_timeout": 60000,
   "rate": 1000,
   "listener_host": "0.0.0.0",
-  "listener_port": "1734"
+  "listener_port": "1734",
+  "log_level": 0
 }

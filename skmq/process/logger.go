@@ -24,21 +24,7 @@ var (
 	writer io.Writer
 )
 
-func init() {
-	file, err := os.OpenFile(DefaultLogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0655)
-	if err != nil {
-		log.Fatalln("Failed to open log file.")
-	}
-
-	writer = io.MultiWriter(file, os.Stdout)
-
-	Trace = log.New(ioutil.Discard, "[TRAC] ", log.Ldate|log.Ltime|log.Lshortfile)
-	Info = log.New(writer, "[INFO] ", log.Ldate|log.Ltime|log.Lshortfile)
-	Warn = log.New(writer, "[WARN] ", log.Ldate|log.Ltime|log.Lshortfile)
-	Err = log.New(io.MultiWriter(file, os.Stderr),  "[ERRO] ", log.Ldate|log.Ltime|log.Lshortfile)
-}
-
-func SetLevel(level int)  {
+func SetLogLevel(level int)  {
 	switch level {
 	case TRAC:
 		Trace.SetOutput(writer)
@@ -62,11 +48,24 @@ func SetLevel(level int)  {
 	}
 }
 
-func SetOutfile(w io.Writer)  {
-	writer = io.MultiWriter(w, os.Stdout)
-	Info.SetOutput(writer)
-	Warn.SetOutput(writer)
+func SetLogOutWriter(w io.Writer)  {
+	if w == nil {
+		file, err := os.OpenFile(DefaultLogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0655)
+		if err != nil {
+			log.Fatalln("Failed to open log file.")
+		}
 
-	Err.SetOutput(io.MultiWriter(w, os.Stderr))
+		writer = io.MultiWriter(file, os.Stdout)
+	} else {
+		writer = w
+	}
+	initLogger(writer)
+}
+
+func initLogger(writer io.Writer)  {
+	Trace = log.New(ioutil.Discard, "[TRAC] ", log.Ldate|log.Ltime|log.Lshortfile)
+	Info = log.New(writer, "[INFO] ", log.Ldate|log.Ltime|log.Lshortfile)
+	Warn = log.New(writer, "[WARN] ", log.Ldate|log.Ltime|log.Lshortfile)
+	Err = log.New(writer,  "[ERRO] ", log.Ldate|log.Ltime|log.Lshortfile)
 }
 

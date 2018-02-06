@@ -14,6 +14,8 @@ type MQConfig struct {
 	ListenerHost string `json:"listener_host"`
 
 	ListenerPort string `json:"listener_port"`
+
+	LogLevel int `json:"log_level"`
 }
 
 type DBConfig struct {
