@@ -172,7 +172,7 @@ The launcher must load mq config and db config while message queue launch
 ---
 
 ---
-# SKMQ - 中文说明
+# SKMQ
 
 SKMQ的设计基于构建在golang的channel和goroutine的优势上
 
