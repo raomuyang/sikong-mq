@@ -13,7 +13,7 @@ type DefaultDeadLetterHandler struct{}
 
 func (handler *DefaultDeadLetterHandler) Process(message base.Message)  {
 	Info.Printf("Process dead letter via default handler: %v \n", message)
-	err := process.DeleteMessage(message.MsgId)
+	err := process.MsgCache.DeleteMessage(message.MsgId)
 	if err != nil {
 		Warn.Printf("Delete dead letter failed, message: " + message.MsgId)
 	}

@@ -37,7 +37,7 @@ func processRegisterMsg(message base.Message, out chan<- base.Response)  {
 
 func processArrivedMsg(message base.Message, out chan<- base.Response)  {
 	disconnect := true
-	err := UpdateMessageStatus(message.MsgId, base.MArrived)
+	err := MsgCache.UpdateMessageStatus(message.MsgId, base.MArrived)
 	status := base.MAck
 	if err != nil {
 		status = base.MError
@@ -49,7 +49,7 @@ func processArrivedMsg(message base.Message, out chan<- base.Response)  {
 }
 
 func processAckMsg(message base.Message, out chan<- base.Response)  {
-	err := DeleteMessage(message.MsgId)
+	err := MsgCache.DeleteMessage(message.MsgId)
 	status := base.MAck
 	if err != nil {
 		status = base.MError
@@ -60,7 +60,7 @@ func processAckMsg(message base.Message, out chan<- base.Response)  {
 }
 
 func processErrorMsg(message base.Message, out chan<- base.Response)  {
-	err := DeadLetterEnqueue(message.MsgId)
+	err := MsgCache.DeadLetterEnqueue(message.MsgId)
 	status := base.MAck
 	disconnect := true
 	if err != nil {
@@ -93,7 +93,7 @@ func processRejectedMsg(message base.Message, out chan<- base.Response)  {
  */
 func checkRejectedMsg(msgId string) error {
 
-	_, err := MessageEntryRetryQueue(msgId)
+	_, err := MsgCache.MessageEntryRetryQueue(msgId)
 	switch err.(type) {
 	case skerr.UnknownDBOperationException:
 		Warn.Println(err)
@@ -102,7 +102,7 @@ func checkRejectedMsg(msgId string) error {
 		return nil
 	case skerr.MessageDead:
 		Warn.Println(err)
-		return DeadLetterEnqueue(msgId)
+		return MsgCache.DeadLetterEnqueue(msgId)
 	case nil:
 		return nil
 	}
@@ -119,12 +119,12 @@ func recipientRegister(message base.Message) error {
 		return skerr.InvalidParameters{Content: string(message.Content)}
 	}
 
-	return SaveRecipientInfo(consumer)
+	return MsgCache.SaveRecipientInfo(consumer)
 }
 
 
 func saveMessage(message base.Message) (string, error) {
-	err := MessageEnqueue(message)
+	err := MsgCache.MessageEnqueue(message)
 	switch err.(type) {
 	case skerr.MsgAlreadyExists:
 		return err.Error(), nil

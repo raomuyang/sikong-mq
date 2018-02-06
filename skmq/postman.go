@@ -39,7 +39,7 @@ func normalLetterSort(deliveryQueue chan<- base.Message, waitGroup sync.WaitGrou
 			waitGroup.Done()
 			break
 		}
-		msg, err := process.MessageDequeue(base.KMessageQueue)
+		msg, err := process.MsgCache.MessageDequeue(base.KMessageQueue)
 		if err != nil {
 			Warn.Println("Scheduler: dequeue error, " + err.Error())
 			time.Sleep(10 * time.Second)
@@ -66,7 +66,7 @@ func retryLetterSort(deliveryQueue chan<- base.Message, waitGroup sync.WaitGroup
 			waitGroup.Done()
 			break
 		}
-		msg, err := process.MessageDequeue(base.KMessageRetryQueue)
+		msg, err := process.MsgCache.MessageDequeue(base.KMessageRetryQueue)
 		if err != nil {
 			Warn.Println("Scheduler: retry-msg dequeue error, " + err.Error())
 			time.Sleep(15 * time.Second)
@@ -90,7 +90,7 @@ func deadLetterSort(dlQueue chan<- base.Message)  {
 			close(dlQueue)
 			break
 		}
-		msg, err := process.MessageDequeue(base.KDeadLetterQueue)
+		msg, err := process.MsgCache.MessageDequeue(base.KDeadLetterQueue)
 		if err != nil {
 			Warn.Println("Scheduler: dl-msg dequeue error, " + err.Error())
 			time.Sleep(30 * time.Second)

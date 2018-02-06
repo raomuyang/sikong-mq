@@ -16,10 +16,10 @@ import (
 	遍历一次所有的Recipients，将失联的标记为Lost
  */
 func CheckRecipientsAvailable() {
-	apps := process.GetApps()
-	for i := range process.GetApps() {
+	apps := process.MsgCache.GetApps()
+	for i := range process.MsgCache.GetApps() {
 		appId := apps[i]
-		recipients, err := process.FindRecipients(appId)
+		recipients, err := process.MsgCache.FindRecipients(appId)
 		if err != nil {
 			Warn.Println(err)
 			continue
@@ -35,7 +35,7 @@ func CheckRecipientsAvailable() {
 			Trace.Printf("Heartbeat: %s, ack: %v\n", address, result)
 			if !result {
 				recipient.Status = base.Lost
-				err = process.UpdateRecipient(*recipient)
+				err = process.MsgCache.UpdateRecipient(*recipient)
 				if err != nil {
 					Warn.Println(err)
 				}
@@ -83,12 +83,12 @@ func ReplyHeartbeat(conn net.Conn) error {
 
 func RecipientBalance(appId string) (*base.RecipientInfo, error) {
 
-	recipients, err := process.FindRecipients(appId)
+	recipients, err := process.MsgCache.FindRecipients(appId)
 	if err != nil {
 		return nil, err
 	}
 
-	recently, err := process.RecentlyAssignedRecord(appId)
+	recently, err := process.MsgCache.RecentlyAssignedRecord(appId)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func RecipientBalance(appId string) (*base.RecipientInfo, error) {
 		}
 	}
 	if recipient != nil {
-		process.UpdateRecipientAssigned(*recipient)
+		process.MsgCache.UpdateRecipientAssigned(*recipient)
 	}
 	return recipient, nil
 }
@@ -152,7 +152,7 @@ func Unicast(appId string, content []byte) (net.Conn, error) {
 func BroadcastConnect(appId string) (<-chan net.Conn, error) {
 
 	connects := make(chan net.Conn)
-	recipients, err := process.FindRecipients(appId)
+	recipients, err := process.MsgCache.FindRecipients(appId)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +183,7 @@ func DeliveryContent(conn net.Conn, content []byte) error {
 func RemoveLostRecipient(recipient base.RecipientInfo) {
 	go func() {
 		recipient.Status = base.Lost
-		process.UpdateRecipient(recipient)
+		process.MsgCache.UpdateRecipient(recipient)
 	}()
 }
 

@@ -85,7 +85,7 @@ func scanTimeoutTasks() {
 			break
 		}
 
-		records, err := process.MessagePostRecords()
+		records, err := process.MsgCache.MessagePostRecords()
 		if err != nil {
 			Warn.Println("Scanner: get records error, " + err.Error())
 			time.Sleep(30 * time.Second)
@@ -95,14 +95,14 @@ func scanTimeoutTasks() {
 			diff := (time.Now().UnixNano() - int64(records[msgId])) - int64(process.Configuration.ACKTimeout)*int64(time.Millisecond)
 			if diff > 0 || -diff < int64(time.Second) {
 
-				_, err := process.MessageEntryRetryQueue(msgId)
+				_, err := process.MsgCache.MessageEntryRetryQueue(msgId)
 				switch err.(type) {
 				case skerr.NoSuchMessage:
 					Warn.Println("Scheduler: warning, " + err.Error())
-					process.DeadLetterEnqueue(msgId)
+					process.MsgCache.DeadLetterEnqueue(msgId)
 				case skerr.MessageDead:
 					Warn.Println("Scheduler: " + err.Error())
-					process.DeadLetterEnqueue(msgId)
+					process.MsgCache.DeadLetterEnqueue(msgId)
 				case nil:
 					Info.Printf("Scheduler: %s will be retried \n", msgId)
 				default:
