@@ -7,6 +7,7 @@ import (
 	"time"
 	"strings"
 	"sync"
+
 	"github.com/sikong-mq/skmq/ratelimiter"
 	"github.com/sikong-mq/skmq/base"
 	"github.com/sikong-mq/skmq/process"
@@ -25,17 +26,30 @@ var (
 
 
 func OpenServer() {
-	msgCache = process.InitDBConfig(*DBConfiguration, Configuration.RetryTimes)
-	msgHandler = process.GetMessageHandler(msgCache)
-	dataExchange = exchange.GetExchange(msgCache)
 
-	laddr := Configuration.ListenerHost + ":" + Configuration.ListenerPort
-	Info.Println("Server: open message queue server, listen " + laddr)
+	initBase()
 
-	go schedule()
+	postman := InitPostman()
+	go postman.schedule()
 	go scanTimeoutTasks()
 	go heartbeatCyclically()
 
+	bind()
+}
+
+func StopServer() {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if stop {
+		return
+	}
+	stop = true
+}
+
+func bind()  {
+	laddr := Configuration.ListenerHost + ":" + Configuration.ListenerPort
+	Info.Println("Server: open message queue server, listen " + laddr)
 	listener, err := net.Listen("tcp", laddr)
 	if err != nil {
 		Err.Println(err)
@@ -63,15 +77,12 @@ func OpenServer() {
 	}
 }
 
-func StopServer() {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	if stop {
-		return
-	}
-	stop = true
+func initBase()  {
+	msgCache = process.InitDBConfig(*DBConfiguration, Configuration.RetryTimes)
+	msgHandler = process.GetMessageHandler(msgCache)
+	dataExchange = exchange.GetExchange(msgCache)
 }
+
 
 func heartbeatCyclically() {
 	for {
