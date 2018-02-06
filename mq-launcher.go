@@ -20,8 +20,7 @@ func main() {
 		http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", DebugPort), nil)
 	}()
 
-	process.SetLogOutWriter(nil)
-	process.SetLogLevel(process.Configuration.LogLevel)
+	process.LoggerSetup(nil, process.Configuration.LogLevel)
 	skmq.OpenServer()
 }
 
