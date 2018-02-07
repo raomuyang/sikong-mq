@@ -1,13 +1,13 @@
 package base
 
 import (
-	"os"
-	"encoding/json"
 	"bufio"
+	"encoding/json"
 	"io"
-	"time"
-	"math/rand"
 	"math"
+	"math/rand"
+	"os"
+	"time"
 )
 
 func UnmarshalJsonFile(instance interface{}, path string) error {
@@ -49,7 +49,7 @@ type Backoff struct {
 }
 
 func (backoff *Backoff) Increase() time.Duration {
-	if backoff.times + 2 >= backoff.GetLimit() {
+	if backoff.times+2 >= backoff.GetLimit() {
 		backoff.times = backoff.GetLimit()
 	} else {
 		backoff.times += 2

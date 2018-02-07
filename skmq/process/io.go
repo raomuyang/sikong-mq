@@ -1,13 +1,13 @@
 package process
 
 import (
-	"net"
 	"bufio"
-	"io"
-	"github.com/sikong-mq/skmq/base"
 	"bytes"
-	"github.com/sikong-mq/skmq/skerr"
 	"fmt"
+	"github.com/sikong-mq/skmq/base"
+	"github.com/sikong-mq/skmq/skerr"
+	"io"
+	"net"
 	"strings"
 )
 
@@ -18,14 +18,14 @@ const (
 )
 
 /**
-	Send stream end with `\r\n\r\n`
- */
-func SendMessage(conn net.Conn, buf []byte) (error) {
+Send stream end with `\r\n\r\n`
+*/
+func SendMessage(conn net.Conn, buf []byte) error {
 	buf = append(buf, []byte(base.End)...)
 	return WriteBuffer(conn, buf)
 }
 
-func WriteBuffer(conn net.Conn, buf []byte) (error) {
+func WriteBuffer(conn net.Conn, buf []byte) error {
 
 	length := len(buf)
 	position := 0
@@ -45,7 +45,7 @@ func WriteBuffer(conn net.Conn, buf []byte) (error) {
 	}
 }
 
-func ReadStream(connect net.Conn) (<-chan []byte) {
+func ReadStream(connect net.Conn) <-chan []byte {
 	input := make(chan []byte, channelSize)
 
 	go func() {
@@ -67,9 +67,9 @@ func ReadStream(connect net.Conn) (<-chan []byte) {
 }
 
 /**
-	这里使用四个换行（\r\n\r\n）来间隔一段消息解决tcp消息粘包问题，
-	每个参数之间用两个换行（\r\n）间隔
- */
+这里使用四个换行（\r\n\r\n）来间隔一段消息解决tcp消息粘包问题，
+每个参数之间用两个换行（\r\n）间隔
+*/
 func DecodeMessage(input <-chan []byte) <-chan base.Message {
 	msgChan := make(chan base.Message, channelSize)
 	go func() {
@@ -102,7 +102,10 @@ func DecodeMessage(input <-chan []byte) <-chan base.Message {
 							continue
 						} else {
 							Err.Println("MError: param separator not found")
-							panic(skerr.StreamReadError{sub, "param separator not found"})
+							panic(
+								skerr.StreamReadError{
+									Input: sub,
+									Msg:   "param separator not found"})
 						}
 					}
 
@@ -149,6 +152,6 @@ func EncodeMessage(message base.Message) []byte {
 		list = append(list, base.PMsgId, base.Separator, message.MsgId, base.Delim)
 	}
 	header := strings.Join(list, "")
-	content := append([]byte(base.PContent + base.Separator), message.Content...)
+	content := append([]byte(base.PContent+base.Separator), message.Content...)
 	return append(append([]byte(header), content...), []byte(base.End)...)
 }

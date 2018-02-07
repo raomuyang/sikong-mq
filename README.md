@@ -1,5 +1,7 @@
 # SIKONG-MQ
 
+[![Build Status](https://travis-ci.org/raomuyang/sikong-mq.svg?branch=master)](https://travis-ci.org/raomuyang/sikong-mq)
+
 > A message queue through the channel connected sender and receiver
 
 This message queue designed based on the advantage of golang channel and goroutine 

@@ -7,7 +7,7 @@ type StreamReadError struct {
 	Msg   string
 }
 
-func (e StreamReadError) Error() string  {
+func (e StreamReadError) Error() string {
 	return fmt.Sprintf("stream read error, case %s: %s", e.Msg, e.Input)
 }
 
@@ -26,24 +26,24 @@ type UnknownDBOperationException struct {
 func (e UnknownDBOperationException) Error() string {
 	return fmt.Sprintf("unknown data base update exception, %s", e.Detail)
 }
+
 type MsgAlreadyExists struct {
-	MsgId string
+	MsgId  string
 	Status string
 }
 
-func (e MsgAlreadyExists) Error() string  {
+func (e MsgAlreadyExists) Error() string {
 	return fmt.Sprintf("message already exists, ID: %s, Status %s", e.MsgId, e.Status)
 }
 
 type AttrTypeError struct {
-	Type string
+	Type  string
 	Value string
 }
 
 func (e AttrTypeError) Error() string {
 	return fmt.Sprintf("attribute type error, except: %s, value: %s.", e.Type, e.Value)
 }
-
 
 type NoSuchMessage struct {
 	MsgId  string
@@ -55,13 +55,13 @@ func (e NoSuchMessage) Error() string {
 }
 
 type MessageDead struct {
-	MsgId string
-	Status string
+	MsgId   string
+	Status  string
 	Retried int
 }
 
 func (e MessageDead) Error() string {
-	return fmt.Sprintf("message delivery failed, " +
+	return fmt.Sprintf("message delivery failed, "+
 		"message id: %s, status: %s, retried: %d", e.MsgId, e.Status, e.Retried)
 }
 
@@ -80,4 +80,3 @@ type NoneAvailableRecipient struct {
 func (e NoneAvailableRecipient) Error() string {
 	return fmt.Sprintf("None available recipient: %s", e.AppId)
 }
-

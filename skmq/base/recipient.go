@@ -8,4 +8,3 @@ type RecipientInfo struct {
 	Status        string `json:"-"`
 	Weight        int    `json:"weight"`
 }
-

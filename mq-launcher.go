@@ -1,18 +1,18 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
-	"os"
-	"encoding/json"
-	"net/http"
-	_ "net/http/pprof"
 	"github.com/sikong-mq/skmq"
 	"github.com/sikong-mq/skmq/base"
 	"github.com/sikong-mq/skmq/process"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
 )
 
-const DebugPort  = 7185
+const DebugPort = 7185
 
 func main() {
 	LoadConf()
@@ -37,7 +37,6 @@ func LoadConf() {
 	}
 	res, _ := json.Marshal(skmq.Configuration)
 	fmt.Printf("config   : %s\n", res)
-
 
 	err = base.UnmarshalJsonFile(skmq.DBConfiguration, *dbConfPath)
 	if err != nil {

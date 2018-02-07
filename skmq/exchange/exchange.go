@@ -1,17 +1,17 @@
 package exchange
 
 import (
-	"strings"
-	"fmt"
-	"net"
-	"time"
 	"bytes"
+	"fmt"
+	"github.com/sikong-mq/skmq/base"
 	"github.com/sikong-mq/skmq/process"
 	"github.com/sikong-mq/skmq/skerr"
-	"github.com/sikong-mq/skmq/base"
+	"net"
+	"strings"
+	"time"
 )
 
-type Exchange interface{
+type Exchange interface {
 	CheckRecipientsAvailable()
 	Heartbeat(connect net.Conn) bool
 	ReplyHeartbeat(conn net.Conn) error
@@ -27,12 +27,12 @@ type DataExchange struct {
 }
 
 func GetExchange(msgCache process.Cache) Exchange {
-	return &DataExchange{MsgCache:msgCache}
+	return &DataExchange{MsgCache: msgCache}
 }
 
 /**
-	遍历一次所有的Recipients，将失联的标记为Lost
- */
+遍历一次所有的Recipients，将失联的标记为Lost
+*/
 func (exchange *DataExchange) CheckRecipientsAvailable() {
 	apps := exchange.MsgCache.GetApps()
 	for i := range exchange.MsgCache.GetApps() {
@@ -63,9 +63,9 @@ func (exchange *DataExchange) CheckRecipientsAvailable() {
 }
 
 /**
-	发送一个心跳包，并检测是否正常返回
-	若超时或返回值不正确，则返回false
- */
+发送一个心跳包，并检测是否正常返回
+若超时或返回值不正确，则返回false
+*/
 func (exchange *DataExchange) Heartbeat(connect net.Conn) bool {
 	if connect == nil {
 		return false
@@ -90,8 +90,8 @@ func (exchange *DataExchange) Heartbeat(connect net.Conn) bool {
 }
 
 /**
-	发送一个8字节的心跳包
- */
+发送一个8字节的心跳包
+*/
 func (exchange *DataExchange) ReplyHeartbeat(conn net.Conn) error {
 	defer conn.SetWriteDeadline(time.Time{})
 	content := []byte(base.PONG)
@@ -133,8 +133,8 @@ func (exchange *DataExchange) RecipientBalance(appId string) (*base.RecipientInf
 }
 
 /**
-	从注册的接收方中挑选一台用于发送，并将建立的连接返回
- */
+从注册的接收方中挑选一台用于发送，并将建立的连接返回
+*/
 func (exchange *DataExchange) Unicast(appId string, content []byte) (net.Conn, error) {
 
 	var conn net.Conn
@@ -163,10 +163,9 @@ func (exchange *DataExchange) Unicast(appId string, content []byte) (net.Conn, e
 	return conn, nil
 }
 
-
 /**
-	Get broadcast connects
- */
+Get broadcast connects
+*/
 func (exchange *DataExchange) BroadcastConnect(appId string) (<-chan net.Conn, error) {
 
 	connects := make(chan net.Conn)
@@ -196,8 +195,8 @@ func (exchange *DataExchange) DeliveryContent(conn net.Conn, content []byte) err
 }
 
 /**
-	避免阻塞
- */
+避免阻塞
+*/
 func (exchange *DataExchange) RemoveLostRecipient(recipient base.RecipientInfo) {
 	go func() {
 		recipient.Status = base.Lost
@@ -206,8 +205,8 @@ func (exchange *DataExchange) RemoveLostRecipient(recipient base.RecipientInfo) 
 }
 
 /**
-	Get connect by recipient info
- */
+Get connect by recipient info
+*/
 func (exchange *DataExchange) getConnect(recipient *base.RecipientInfo) net.Conn {
 	address := recipient.Host + ":" + recipient.Port
 	Info.Println("Connect target:", address)

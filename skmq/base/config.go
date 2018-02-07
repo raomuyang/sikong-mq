@@ -1,6 +1,5 @@
 package base
 
-
 type MQConfig struct {
 	// The max retry times of message push to consumer
 	RetryTimes int `json:"retry_times"`

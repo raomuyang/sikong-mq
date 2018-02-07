@@ -3,35 +3,35 @@ package base
 import "time"
 
 /**
-	DB Key
- */
+DB Key
+*/
 const (
-	KMsgId = "msgid"
-	KAppId = "appid"
-	KHost  = "host"
-	KPort  = "port"
-	KStatus = "status"
-	KType = "type"
+	KMsgId   = "msgid"
+	KAppId   = "appid"
+	KHost    = "host"
+	KPort    = "port"
+	KStatus  = "status"
+	KType    = "type"
 	KContent = "content"
 	KRetried = "retried"
-	KWeight = "weight"
+	KWeight  = "weight"
 )
 
 /**
-	queue/set name
- */
+queue/set name
+*/
 const (
 	// recipients
-	KRecipientSet    = "sk-rec-s"
+	KRecipientSet = "sk-rec-s"
 
 	// recent invoke information
-	KRecentMap       = "sk-recently"
+	KRecentMap = "sk-recently"
 
 	// msg wait queue
-	KMessageQueue    = "sk-msg-q"
+	KMessageQueue = "sk-msg-q"
 
 	// msg send time
-	KMessageMap      = "sk-msg-record"
+	KMessageMap = "sk-msg-record"
 
 	// msg retry queue
 	KMessageRetryQueue = "sk-rty-q"
@@ -44,26 +44,26 @@ const (
 )
 
 /**
-	Sikong-mq Protocol:
- */
+Sikong-mq Protocol:
+*/
 const (
-	PING		  = "ping"
-	PONG		  = "pong"
+	PING = "ping"
+	PONG = "pong"
 
-	PAppID        = "appid"
-	PMsgId        = "msgid"
-	PRequestType  = "type"
-	PContent      = "content"
-	Delim         = "\r\n"
-	End			  = Delim + Delim
-	Separator     = "="
+	PAppID       = "appid"
+	PMsgId       = "msgid"
+	PRequestType = "type"
+	PContent     = "content"
+	Delim        = "\r\n"
+	End          = Delim + Delim
+	Separator    = "="
 
 	TopicMsg = "topic"
 	QueueMsg = "queue"
 
 	// Consumer reply
-	MPush		= "push"
-	MResponse 	= "resp"
+	MPush       = "push"
+	MResponse   = "resp"
 	MAckMsg     = "ack"
 	MRejectMsg  = "reject"
 	MArrivedMsg = "arrived"
@@ -72,10 +72,10 @@ const (
 )
 
 /**
-	Message status value
- */
+Message status value
+*/
 const (
-	MSaved	 = "-saved"
+	MSaved   = "-saved"
 	MPending = "pending"
 	MSending = "sending"
 	MArrived = "arrived"
@@ -87,15 +87,15 @@ const (
 
 const (
 	Alive = "alive"
-	Lost = "lost"
+	Lost  = "lost"
 )
 
 const (
 	ConnectTimeOut = time.Minute
-	RetrySleep = time.Minute
+	RetrySleep     = time.Minute
 )
 
 const (
-	DefaultConf = "conf.json"
+	DefaultConf   = "conf.json"
 	DefaultDBConf = "dbconf.json"
 )

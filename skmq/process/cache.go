@@ -1,22 +1,21 @@
 package process
 
 import (
-	"github.com/garyburd/redigo/redis"
-	"time"
-	"strconv"
 	"fmt"
-	"strings"
-	"github.com/sikong-mq/skmq/skerr"
+	"github.com/garyburd/redigo/redis"
 	"github.com/sikong-mq/skmq/base"
+	"github.com/sikong-mq/skmq/skerr"
+	"strconv"
+	"strings"
+	"time"
 )
 
-
-type Cache interface{
+type Cache interface {
 	SaveRecipientInfo(recipientInfo base.RecipientInfo) error
 	UpdateRecipient(recipientInfo base.RecipientInfo) error
 	FindRecipients(applicationId string) ([]*base.RecipientInfo, error)
 	GetRecipientById(recipientId string) (*base.RecipientInfo, error)
-	RecentlyAssignedRecord(applicationId string) (map[string] int, error)
+	RecentlyAssignedRecord(applicationId string) (map[string]int, error)
 	UpdateRecipientAssigned(recipient base.RecipientInfo) (int, error)
 	ResetRecipientAssignedRecord(applicationId string) error
 
@@ -27,13 +26,12 @@ type Cache interface{
 	MessageDequeue(queue string) (*base.Message, error)
 	MessageEntryRetryQueue(msgId string) (*base.Message, error)
 	DeadLetterEnqueue(msgId string) error
-	MessagePostRecords() (map[string] int, error)
+	MessagePostRecords() (map[string]int, error)
 
 	AddApplication(appId string) error
 	GetApps() []string
 
 	Locker() *RedisLock
-
 }
 
 type MessageCache struct {
@@ -42,11 +40,9 @@ type MessageCache struct {
 	messageRetryTimes int
 }
 
-
 func InitDBConfig(config base.DBConfig, messageRetryTimes int) Cache {
 
-	pool := &redis.Pool{
-	}
+	pool := &redis.Pool{}
 
 	pool.MaxIdle = config.MaxIdle
 	pool.MaxActive = config.MaxActive
@@ -95,9 +91,9 @@ func InitDBConfig(config base.DBConfig, messageRetryTimes int) Cache {
 }
 
 /**
-	Save the information of consumer host,
-	and it will be register in set: rec-set/application-id
- */
+Save the information of consumer host,
+and it will be register in set: rec-set/application-id
+*/
 func (cache *MessageCache) SaveRecipientInfo(recipientInfo base.RecipientInfo) error {
 	Pool := cache.pool
 
@@ -149,13 +145,13 @@ func (cache *MessageCache) UpdateRecipient(recipientInfo base.RecipientInfo) err
 		set := base.KRecipientSet + "/" + recipientInfo.ApplicationId
 		_, err := dbConn.Do("SREM", set, recipientInfo.RecipientId)
 		if err != nil {
-			return skerr.UnknownDBOperationException{Detail: "Remove from " + set + ": " + err.Error() }
+			return skerr.UnknownDBOperationException{Detail: "Remove from " + set + ": " + err.Error()}
 		}
 
 		theMap := base.KRecentMap + "/" + recipientInfo.ApplicationId
 		_, err = dbConn.Do("HDEL", theMap, recipientInfo.RecipientId)
 		if err != nil {
-			return skerr.UnknownDBOperationException{Detail: "Remove from " + theMap + ": " + err.Error() }
+			return skerr.UnknownDBOperationException{Detail: "Remove from " + theMap + ": " + err.Error()}
 		}
 	}
 
@@ -163,8 +159,8 @@ func (cache *MessageCache) UpdateRecipient(recipientInfo base.RecipientInfo) err
 }
 
 /**
-	Return a consumer list
- */
+Return a consumer list
+*/
 func (cache *MessageCache) FindRecipients(applicationId string) ([]*base.RecipientInfo, error) {
 	Pool := cache.pool
 	dbConn := Pool.Get()
@@ -204,15 +200,15 @@ func (cache *MessageCache) GetRecipientById(recipientId string) (*base.Recipient
 		RecipientId:   recipientId,
 		Host:          result[base.KHost],
 		Port:          result[base.KPort],
-		Weight:		   weight,
+		Weight:        weight,
 		Status:        result[base.KStatus]}
 	return &rec, nil
 }
 
 /**
-	Returns the called times of each consumer(id)
- */
-func (cache *MessageCache) RecentlyAssignedRecord(applicationId string) (map[string] int, error) {
+Returns the called times of each consumer(id)
+*/
+func (cache *MessageCache) RecentlyAssignedRecord(applicationId string) (map[string]int, error) {
 	Pool := cache.pool
 	dbConn := Pool.Get()
 	theMap := base.KRecentMap + "/" + applicationId
@@ -221,7 +217,7 @@ func (cache *MessageCache) RecentlyAssignedRecord(applicationId string) (map[str
 		return nil, skerr.UnknownDBOperationException{Detail: "Get recent " +
 			"assigned map exception: " + err.Error()}
 	}
-	recently := make(map[string] int)
+	recently := make(map[string]int)
 	for i := range result {
 		value, err := strconv.Atoi(result[i])
 		if err != nil {
@@ -255,11 +251,10 @@ func (cache *MessageCache) ResetRecipientAssignedRecord(applicationId string) er
 	}
 	return nil
 }
- 
 
 /**
-	Get message info by message id
- */
+Get message info by message id
+*/
 func (cache *MessageCache) GetMessageInfo(msgId string) (*base.Message, error) {
 	Pool := cache.pool
 	dbConn := Pool.Get()
@@ -280,11 +275,11 @@ func (cache *MessageCache) GetMessageInfo(msgId string) (*base.Message, error) {
 	msgType := baseResult[3]
 
 	message := base.Message{
-		MsgId: msgId,
-		AppID: baseResult[0],
-		Status: baseResult[1],
+		MsgId:   msgId,
+		AppID:   baseResult[0],
+		Status:  baseResult[1],
 		Retried: retried,
-		Type: msgType}
+		Type:    msgType}
 	content, err := redis.ByteSlices(dbConn.Do("HMGET", msgId, base.KContent))
 	if err != nil {
 		return nil, skerr.UnknownDBOperationException{Detail: "Get message content: " + err.Error()}
@@ -328,8 +323,8 @@ func (cache *MessageCache) UpdateMessageStatus(msgId, status string) error {
 }
 
 /**
-	Save message entity to redis, index by messageId
- */
+Save message entity to redis, index by messageId
+*/
 func (cache *MessageCache) MessageEnqueue(message base.Message) error {
 	Pool := cache.pool
 	dbConn := Pool.Get()
@@ -364,8 +359,8 @@ func (cache *MessageCache) MessageEnqueue(message base.Message) error {
 }
 
 /**
-	对于重试队列的出队列，当时间未达到重试时间时，函数会发生阻塞
- */
+对于重试队列的出队列，当时间未达到重试时间时，函数会发生阻塞
+*/
 func (cache *MessageCache) MessageDequeue(queue string) (*base.Message, error) {
 	Pool := cache.pool
 	dbConn := Pool.Get()
@@ -380,7 +375,7 @@ func (cache *MessageCache) MessageDequeue(queue string) (*base.Message, error) {
 	if result == nil {
 		return nil, nil
 	}
-	m, err:= redis.StringMap(result, err)
+	m, err := redis.StringMap(result, err)
 	msgId := m[queue]
 	msg, err := cache.GetMessageInfo(msgId)
 
@@ -419,10 +414,9 @@ func (cache *MessageCache) MessageDequeue(queue string) (*base.Message, error) {
 	return msg, nil
 }
 
-
 /**
-	信息重发次数递增
- */
+信息重发次数递增
+*/
 func (cache *MessageCache) MessageEntryRetryQueue(msgId string) (*base.Message, error) {
 	Pool := cache.pool
 
@@ -442,7 +436,6 @@ func (cache *MessageCache) MessageEntryRetryQueue(msgId string) (*base.Message, 
 	if !result {
 		return msg, nil
 	}
-
 
 	dbConn := Pool.Get()
 	_, err = dbConn.Do("HINCRBY", msgId, base.KRetried, 1)
@@ -465,8 +458,8 @@ func (cache *MessageCache) MessageEntryRetryQueue(msgId string) (*base.Message, 
 }
 
 /**
-	Dead letter enqueue
- */
+Dead letter enqueue
+*/
 func (cache *MessageCache) DeadLetterEnqueue(msgId string) error {
 
 	Pool := cache.pool
@@ -493,7 +486,7 @@ func (cache *MessageCache) DeadLetterEnqueue(msgId string) error {
 	return nil
 }
 
-func (cache *MessageCache) MessagePostRecords() (map[string] int, error) {
+func (cache *MessageCache) MessagePostRecords() (map[string]int, error) {
 	Pool := cache.pool
 	dbConn := Pool.Get()
 	result, err := dbConn.Do("HGETALL", base.KMessageMap)
@@ -501,7 +494,7 @@ func (cache *MessageCache) MessagePostRecords() (map[string] int, error) {
 		return nil, skerr.UnknownDBOperationException{Detail: "get message post records failed, " + err.Error()}
 	}
 	if result == nil {
-		 return make(map[string]int, 0), nil
+		return make(map[string]int, 0), nil
 	}
 	msgMap, err := redis.IntMap(result, err)
 	if err != nil {
@@ -510,7 +503,7 @@ func (cache *MessageCache) MessagePostRecords() (map[string] int, error) {
 	return msgMap, nil
 }
 
-func (cache *MessageCache) AddApplication(appId string) error  {
+func (cache *MessageCache) AddApplication(appId string) error {
 	Pool := cache.pool
 	_, err := Pool.Get().Do("SADD", base.KAppSet, appId)
 	if err != nil {
@@ -533,13 +526,11 @@ type RedisLock struct {
 	Pool       *redis.Pool
 	expireTime int
 	prefix     string
-
 }
-
 
 func (redisLock *RedisLock) TryLock(requestId string) (bool, error) {
 	dbConn := redisLock.Pool.Get()
-	rep, err := dbConn.Do("SET", redisLock.Prefix() + requestId, "Locked", "NX", "EX", redisLock.ExpireTime())
+	rep, err := dbConn.Do("SET", redisLock.Prefix()+requestId, "Locked", "NX", "EX", redisLock.ExpireTime())
 	if err != nil {
 		return false, err
 	}
@@ -554,10 +545,9 @@ func (redisLock *RedisLock) TryLock(requestId string) (bool, error) {
 	return false, err
 }
 
-
 func (redisLock *RedisLock) Unlock(requestId string) error {
 	dbConn := redisLock.Pool.Get()
-	_, err := dbConn.Do("DEL", redisLock.Prefix() + requestId)
+	_, err := dbConn.Do("DEL", redisLock.Prefix()+requestId)
 	return err
 }
 
@@ -580,7 +570,6 @@ func (redisLock *RedisLock) Prefix() string {
 	return redisLock.prefix
 }
 
-func (redisLock *RedisLock) SetPrefix(prefix string)  {
+func (redisLock *RedisLock) SetPrefix(prefix string) {
 	redisLock.prefix = prefix
 }
-

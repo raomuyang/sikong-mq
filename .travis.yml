@@ -1,0 +1,13 @@
+lagunage: go
+go:
+    - 1.9
+    - master
+install:
+    - echo $GOROOT
+    - echo $GOPATH
+    - go get github.com/garyburd/redigo/redis
+    - mkdir -p $GOPATH/src/github.com/
+    - cp ../sikong-mq $GOPATH/src/github.com/ -r
+script:
+    - go test -v -race ./skmq/...
+    - go vet ./...
