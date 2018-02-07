@@ -3,10 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"github.com/sikong-mq/skmq/base"
-	"github.com/sikong-mq/skmq/process"
 	"github.com/sikong-mq/skmq/exchange"
+	"github.com/sikong-mq/skmq/process"
+	"net"
 )
 
 var recipient = base.RecipientInfo{
@@ -20,7 +20,7 @@ func main() {
 	register()
 	// 启动消息接收服务
 	fmt.Println("Start recipient server.")
-	server, err := net.Listen("tcp", recipient.Host + ":" + recipient.Port)
+	server, err := net.Listen("tcp", recipient.Host+":"+recipient.Port)
 	if err != nil {
 		panic(err)
 	}
@@ -34,7 +34,7 @@ func main() {
 		msgChan := process.DecodeMessage(process.ReadStream(c))
 		go func() {
 			for {
-				msg, ok := <- msgChan
+				msg, ok := <-msgChan
 				if !ok {
 					break
 				}
@@ -55,14 +55,14 @@ func main() {
 	}
 }
 
-func register()  {
+func register() {
 	content, err := json.Marshal(recipient)
 	if err != nil {
 		panic(err)
 	}
 
 	msg := base.Message{
-		Type: base.RegisterMsg,
+		Type:    base.RegisterMsg,
 		Content: content}
 
 	conn, err := net.Dial("tcp", "127.0.0.1:1734")

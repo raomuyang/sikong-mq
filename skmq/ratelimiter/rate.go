@@ -3,10 +3,10 @@
 package ratelimiter
 
 import (
-	"time"
 	"errors"
 	"math"
 	"sync"
+	"time"
 )
 
 type RateLimiter interface {
@@ -17,7 +17,6 @@ type RateLimiter interface {
 	Acquire(permits int) int64
 
 	TryAcquire(permits int, timeout time.Duration) bool
-
 }
 
 type TokenBucketLimiter struct {
@@ -35,7 +34,7 @@ func (limiter *TokenBucketLimiter) SetRate(permitsPerSeconds float64) {
 
 }
 
-func (limiter TokenBucketLimiter) GetRate() float64 {
+func (limiter *TokenBucketLimiter) GetRate() float64 {
 	return float64(time.Second) / limiter.burstInterval
 }
 
@@ -89,12 +88,12 @@ func (limiter *TokenBucketLimiter) doSetRate(permitsPerSeconds float64, now int6
 }
 
 /**
-	将nextFreeTicket同步到当前时间
- */
+将nextFreeTicket同步到当前时间
+*/
 func (limiter *TokenBucketLimiter) resync(now int64) {
 	if now > limiter.nextFreeTicket {
-		newPermits := float64(now - limiter.nextFreeTicket) / limiter.burstInterval
-		limiter.storedPermits = math.Min(newPermits + limiter.storedPermits, limiter.maxPermits)
+		newPermits := float64(now-limiter.nextFreeTicket) / limiter.burstInterval
+		limiter.storedPermits = math.Min(newPermits+limiter.storedPermits, limiter.maxPermits)
 		limiter.nextFreeTicket = now
 	}
 }
@@ -134,7 +133,6 @@ func CustomTokenBucket(rate float64, stopwatch *Stopwatch) *TokenBucketLimiter {
 	limiter.SetRate(rate)
 	return limiter
 }
-
 
 type Stopwatch struct {
 	startNanos   int64

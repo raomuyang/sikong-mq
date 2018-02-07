@@ -1,12 +1,12 @@
 package main
 
 import (
-	"net"
 	"fmt"
-	"time"
 	"github.com/sikong-mq/skmq/base"
-	"github.com/sikong-mq/skmq/process"
 	"github.com/sikong-mq/skmq/exchange"
+	"github.com/sikong-mq/skmq/process"
+	"net"
+	"time"
 )
 
 func main() {
@@ -44,7 +44,6 @@ func main() {
 			fmt.Printf("%s", bytes)
 		}
 	}()
-
 
 	process.SendMessage(conn, process.EncodeMessage(testMsg1))
 

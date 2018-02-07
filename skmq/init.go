@@ -1,16 +1,16 @@
 package skmq
 
 import (
-	"github.com/sikong-mq/skmq/process"
 	"github.com/sikong-mq/skmq/base"
 	"github.com/sikong-mq/skmq/exchange"
+	"github.com/sikong-mq/skmq/process"
 )
 
 var (
 	Trace = process.Trace
-	Info = process.Info
-	Warn = process.Warn
-	Err = process.Err
+	Info  = process.Info
+	Warn  = process.Warn
+	Err   = process.Err
 )
 
 var (
@@ -19,10 +19,9 @@ var (
 	Configuration   *base.MQConfig
 	DBConfiguration *base.DBConfig
 
-
-	msgHandler		process.MessageHandler
-	msgCache		process.Cache
-	dataExchange	exchange.Exchange
+	msgHandler   process.MessageHandler
+	msgCache     process.Cache
+	dataExchange exchange.Exchange
 )
 
 func init() {
@@ -34,8 +33,8 @@ func init() {
 		ListenerPort: "1734"}
 
 	DBConfiguration = &base.DBConfig{
-		Address:      "127.0.0.1:6379",
-		DB:           1}
+		Address: "127.0.0.1:6379",
+		DB:      1}
 
 }
 

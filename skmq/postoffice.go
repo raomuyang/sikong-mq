@@ -1,29 +1,28 @@
 package skmq
 
 import (
-	"net"
-	"errors"
 	"encoding/json"
-	"time"
+	"errors"
+	"net"
 	"strings"
 	"sync"
+	"time"
 
-	"github.com/sikong-mq/skmq/ratelimiter"
 	"github.com/sikong-mq/skmq/base"
-	"github.com/sikong-mq/skmq/process"
 	"github.com/sikong-mq/skmq/exchange"
+	"github.com/sikong-mq/skmq/process"
+	"github.com/sikong-mq/skmq/ratelimiter"
 	"github.com/sikong-mq/skmq/skerr"
 )
 
 const (
-	SendBuf    = 1 << 5
+	SendBuf = 1 << 5
 )
 
 var (
-	stop = false
+	stop  = false
 	mutex sync.Mutex
 )
-
 
 func OpenServer() {
 
@@ -47,7 +46,7 @@ func StopServer() {
 	stop = true
 }
 
-func bind()  {
+func bind() {
 	laddr := Configuration.ListenerHost + ":" + Configuration.ListenerPort
 	Info.Println("Server: open message queue server, listen " + laddr)
 	listener, err := net.Listen("tcp", laddr)
@@ -77,12 +76,11 @@ func bind()  {
 	}
 }
 
-func initBase()  {
+func initBase() {
 	msgCache = process.InitDBConfig(*DBConfiguration, Configuration.RetryTimes)
 	msgHandler = process.GetMessageHandler(msgCache)
 	dataExchange = exchange.GetExchange(msgCache)
 }
-
 
 func heartbeatCyclically() {
 	for {
@@ -127,7 +125,6 @@ func scanTimeoutTasks() {
 		time.Sleep(time.Minute)
 	}
 }
-
 
 func receive(connect net.Conn) {
 	go func() {
@@ -186,6 +183,3 @@ func reply(connect net.Conn, proactive bool, repChan <-chan base.Response) {
 	}
 
 }
-
-
-

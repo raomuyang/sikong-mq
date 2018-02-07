@@ -1,16 +1,17 @@
 package exchange
 
 import (
-	"testing"
-	"net"
-	"strings"
 	"fmt"
 	"github.com/sikong-mq/skmq/base"
+	"net"
+	"strings"
+	"testing"
 )
 
 var (
 	address = "127.0.0.1:9001"
 )
+
 func TestHeartBeta(t *testing.T) {
 	exc := GetExchange(nil)
 	server, _ := net.Listen("tcp", address)

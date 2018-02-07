@@ -1,10 +1,10 @@
 package skmq
 
 import (
+	"fmt"
+	"net"
 	"sync"
 	"time"
-	"net"
-	"fmt"
 
 	"github.com/sikong-mq/skmq/base"
 	"github.com/sikong-mq/skmq/process"
@@ -13,7 +13,7 @@ import (
 type Postman struct {
 	deliveryQueue   chan base.Message
 	deadLetterQueue chan base.Message
-	waitGroup 		sync.WaitGroup
+	waitGroup       *sync.WaitGroup
 }
 
 func InitPostman() *Postman {
@@ -21,9 +21,9 @@ func InitPostman() *Postman {
 	wg.Add(2)
 
 	return &Postman{
-		deliveryQueue: make(chan base.Message, SendBuf),
+		deliveryQueue:   make(chan base.Message, SendBuf),
 		deadLetterQueue: make(chan base.Message, SendBuf),
-		waitGroup: wg}
+		waitGroup:       &wg}
 }
 
 func (postman *Postman) schedule() {
@@ -40,8 +40,7 @@ func (postman *Postman) schedule() {
 	close(postman.deliveryQueue)
 }
 
-
-func (postman *Postman) normalLetterSort(deliveryQueue chan<- base.Message, waitGroup sync.WaitGroup) {
+func (postman *Postman) normalLetterSort(deliveryQueue chan<- base.Message, waitGroup *sync.WaitGroup) {
 
 	backoff := base.Backoff{}
 	// Msg dequeue
@@ -68,8 +67,7 @@ func (postman *Postman) normalLetterSort(deliveryQueue chan<- base.Message, wait
 
 }
 
-
-func (postman *Postman) retryLetterSort(deliveryQueue chan<- base.Message, waitGroup sync.WaitGroup)  {
+func (postman *Postman) retryLetterSort(deliveryQueue chan<- base.Message, waitGroup *sync.WaitGroup) {
 	backoff := base.Backoff{}
 	// retry-msg dequeue
 	for {
@@ -93,7 +91,7 @@ func (postman *Postman) retryLetterSort(deliveryQueue chan<- base.Message, waitG
 	}
 }
 
-func (postman *Postman) deadLetterSort(dlQueue chan<- base.Message)  {
+func (postman *Postman) deadLetterSort(dlQueue chan<- base.Message) {
 	backoff := base.Backoff{}
 	// dl-msg dequeue
 	for {
@@ -117,7 +115,7 @@ func (postman *Postman) deadLetterSort(dlQueue chan<- base.Message)  {
 	}
 }
 
-func (postman *Postman) letterTransfer(deliveryQueue <-chan base.Message, dlQueue <-chan base.Message)  {
+func (postman *Postman) letterTransfer(deliveryQueue <-chan base.Message, dlQueue <-chan base.Message) {
 	// msg delivery
 	for {
 
@@ -147,7 +145,7 @@ func (postman *Postman) delivery(message base.Message) {
 	}
 }
 
-func (postman *Postman) topic(message base.Message)  {
+func (postman *Postman) topic(message base.Message) {
 	message.Type = base.MPush
 
 	go func() {
@@ -157,15 +155,17 @@ func (postman *Postman) topic(message base.Message)  {
 			return
 		}
 		for {
-			connect, ok := <- channel
-			if !ok {break}
+			connect, ok := <-channel
+			if !ok {
+				break
+			}
 			go postman.broadcastConnection(connect, message)
 
 		}
 	}()
 }
 
-func (postman *Postman) queue(message base.Message)  {
+func (postman *Postman) queue(message base.Message) {
 	message.Type = base.MPush
 	go func() {
 		defer func() {
@@ -193,7 +193,7 @@ func (postman *Postman) queue(message base.Message)  {
 	}()
 }
 
-func (postman *Postman) broadcastConnection(conn net.Conn, message base.Message)  {
+func (postman *Postman) broadcastConnection(conn net.Conn, message base.Message) {
 	logInfo := fmt.Sprintf("Delivery: broadcast message (%s/%s) remote (%s)",
 		message.AppID, message.MsgId, conn.RemoteAddr())
 	Info.Println(logInfo)

@@ -2,12 +2,13 @@ package process
 
 import (
 	"encoding/json"
-	"github.com/sikong-mq/skmq/skerr"
 	"github.com/sikong-mq/skmq/base"
+	"github.com/sikong-mq/skmq/skerr"
 )
 
 const defaultChannelSize = 8
-type MessageHandler interface{
+
+type MessageHandler interface {
 	HandleMessage(msgChan <-chan base.Message) <-chan base.Response
 }
 
@@ -16,10 +17,10 @@ type MessageHandlerImpl struct {
 }
 
 func GetMessageHandler(msgCache Cache) MessageHandler {
-	return &MessageHandlerImpl{msgCache:msgCache}
+	return &MessageHandlerImpl{msgCache: msgCache}
 }
 
-func (msgHandler *MessageHandlerImpl) processNewMsg(message base.Message, out chan<- base.Response)  {
+func (msgHandler *MessageHandlerImpl) processNewMsg(message base.Message, out chan<- base.Response) {
 	content, err := msgHandler.saveMessage(message)
 	Info.Printf("%s, %s\n", content, err)
 	status := base.MAck
@@ -30,8 +31,7 @@ func (msgHandler *MessageHandlerImpl) processNewMsg(message base.Message, out ch
 	out <- base.Response{Status: status, Content: content}
 }
 
-
-func (msgHandler *MessageHandlerImpl) processRegisterMsg(message base.Message, out chan<- base.Response)  {
+func (msgHandler *MessageHandlerImpl) processRegisterMsg(message base.Message, out chan<- base.Response) {
 	err := msgHandler.recipientRegister(message)
 	status := base.MAck
 	var content = "Recipient register successful."
@@ -43,7 +43,7 @@ func (msgHandler *MessageHandlerImpl) processRegisterMsg(message base.Message, o
 	out <- base.Response{Status: status, Content: content}
 }
 
-func (msgHandler *MessageHandlerImpl) processArrivedMsg(message base.Message, out chan<- base.Response)  {
+func (msgHandler *MessageHandlerImpl) processArrivedMsg(message base.Message, out chan<- base.Response) {
 	disconnect := true
 	err := msgHandler.msgCache.UpdateMessageStatus(message.MsgId, base.MArrived)
 	status := base.MAck
@@ -56,7 +56,7 @@ func (msgHandler *MessageHandlerImpl) processArrivedMsg(message base.Message, ou
 	out <- base.Response{Status: status, Disconnect: disconnect}
 }
 
-func (msgHandler *MessageHandlerImpl) processAckMsg(message base.Message, out chan<- base.Response)  {
+func (msgHandler *MessageHandlerImpl) processAckMsg(message base.Message, out chan<- base.Response) {
 	err := msgHandler.msgCache.DeleteMessage(message.MsgId)
 	status := base.MAck
 	if err != nil {
@@ -67,7 +67,7 @@ func (msgHandler *MessageHandlerImpl) processAckMsg(message base.Message, out ch
 	out <- base.Response{Status: status}
 }
 
-func (msgHandler *MessageHandlerImpl) processErrorMsg(message base.Message, out chan<- base.Response)  {
+func (msgHandler *MessageHandlerImpl) processErrorMsg(message base.Message, out chan<- base.Response) {
 	err := msgHandler.msgCache.DeadLetterEnqueue(message.MsgId)
 	status := base.MAck
 	disconnect := true
@@ -80,7 +80,7 @@ func (msgHandler *MessageHandlerImpl) processErrorMsg(message base.Message, out 
 	out <- base.Response{Status: status, Disconnect: disconnect}
 }
 
-func (msgHandler *MessageHandlerImpl) processRejectedMsg(message base.Message, out chan<- base.Response)  {
+func (msgHandler *MessageHandlerImpl) processRejectedMsg(message base.Message, out chan<- base.Response) {
 	err := msgHandler.checkRejectedMsg(message.MsgId)
 	status := base.MAck
 	disconnect := true
@@ -95,10 +95,10 @@ func (msgHandler *MessageHandlerImpl) processRejectedMsg(message base.Message, o
 }
 
 /**
-	If the message retransmission times is no more than limit,
-	it will be entries another queue to wait retry.
-	otherwise it will be entries the dead letter queue
- */
+If the message retransmission times is no more than limit,
+it will be entries another queue to wait retry.
+otherwise it will be entries the dead letter queue
+*/
 func (msgHandler *MessageHandlerImpl) checkRejectedMsg(msgId string) error {
 
 	_, err := msgHandler.msgCache.MessageEntryRetryQueue(msgId)
@@ -118,8 +118,8 @@ func (msgHandler *MessageHandlerImpl) checkRejectedMsg(msgId string) error {
 }
 
 /**
-	Recipient register
- */
+Recipient register
+*/
 func (msgHandler *MessageHandlerImpl) recipientRegister(message base.Message) error {
 	consumer := base.RecipientInfo{}
 	err := json.Unmarshal(message.Content, &consumer)
@@ -129,7 +129,6 @@ func (msgHandler *MessageHandlerImpl) recipientRegister(message base.Message) er
 
 	return msgHandler.msgCache.SaveRecipientInfo(consumer)
 }
-
 
 func (msgHandler *MessageHandlerImpl) saveMessage(message base.Message) (string, error) {
 	err := msgHandler.msgCache.MessageEnqueue(message)
@@ -142,7 +141,6 @@ func (msgHandler *MessageHandlerImpl) saveMessage(message base.Message) (string,
 		return "Message enqueue failed.", err
 	}
 }
-
 
 func (msgHandler *MessageHandlerImpl) HandleMessage(msgChan <-chan base.Message) <-chan base.Response {
 	out := make(chan base.Response, defaultChannelSize)
