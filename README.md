@@ -1,6 +1,6 @@
 # SIKONG-MQ
 
-[![Build Status](https://travis-ci.org/raomuyang/sikong-mq.svg?branch=master)](https://travis-ci.org/raomuyang/sikong-mq)
+[![Build Status](https://travis-ci.org/raomuyang/sikong-mq.svg?branch=master)](https://travis-ci.org/raomuyang/sikong-mq) [![Go Report Card](https://goreportcard.com/badge/github.com/raomuyang/sikong-mq)](https://goreportcard.com/report/github.com/raomuyang/sikong-mq)
 
 > A message queue through the channel connected sender and receiver
 
