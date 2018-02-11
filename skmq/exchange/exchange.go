@@ -223,7 +223,7 @@ Get connect by recipient info
 */
 func (exchange *DataExchange) getConnect(recipient *base.RecipientInfo) net.Conn {
 	address := recipient.Host + ":" + recipient.Port
-	Info.Println("Connect target:", address)
+	Trace.Println("Connect target:", address)
 	conn, err := net.DialTimeout("tcp", address, base.ConnectTimeOut)
 	if err != nil {
 		exchange.RemoveLostRecipient(*recipient)

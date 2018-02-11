@@ -68,7 +68,7 @@ func bind() {
 			break
 		}
 		connect, err := listener.Accept()
-		Info.Printf("Server: accept %v\n", connect.RemoteAddr())
+		Trace.Printf("Server: accept %v\n", connect.RemoteAddr())
 		if err != nil {
 			panic(err)
 		}
@@ -144,7 +144,7 @@ func reply(connect net.Conn, proactive bool, repChan <-chan base.Response) {
 	for {
 		response, ok := <-repChan
 		if !ok {
-			Info.Println("Reply: message handler close the channel")
+			Trace.Println("Reply: message handler close the channel")
 			disconnect = true
 			break
 		}
@@ -173,7 +173,7 @@ func reply(connect net.Conn, proactive bool, repChan <-chan base.Response) {
 	}
 
 	if disconnect {
-		Info.Println("Close connect: " + connect.RemoteAddr().String())
+		Trace.Println("Close connect: " + connect.RemoteAddr().String())
 		err := connect.Close()
 		if err != nil {
 			Warn.Println("Reply: close connect failed, " + err.Error())

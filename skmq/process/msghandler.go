@@ -22,7 +22,7 @@ func GetMessageHandler(msgCache Cache) MessageHandler {
 
 func (msgHandler *MessageHandlerImpl) processNewMsg(message base.Message, out chan<- base.Response) {
 	content, err := msgHandler.saveMessage(message)
-	Info.Printf("%s, %s\n", content, err)
+	Info.Printf("process message: %s, %s, error: %s\n", message.MsgId, content, err)
 	status := base.MAck
 	if err != nil {
 		status = base.MReject
