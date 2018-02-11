@@ -56,6 +56,7 @@ func (exchange *DataExchange) CheckRecipientsAvailable() {
 			connect, err := net.DialTimeout("tcp", address, base.ConnectTimeOut)
 			if err != nil {
 				Warn.Printf("Heartbeat: %s, %s\n", address, err.Error())
+				continue
 			}
 			result := exchange.Heartbeat(connect)
 			Trace.Printf("Heartbeat: %s, ack: %v\n", address, result)
