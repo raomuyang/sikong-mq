@@ -119,11 +119,24 @@ func (postman *Postman) letterTransfer(deliveryQueue <-chan base.Message, dlQueu
 	// msg delivery
 	for {
 
+		closed := false
 		select {
-		case msg := <-deliveryQueue:
+		case msg, ok := <-deliveryQueue:
+			if !ok {
+				closed = true
+				break
+			}
 			postman.delivery(msg)
-		case msg := <-dlQueue:
+		case msg, ok := <-dlQueue:
+			if !ok {
+				closed = true
+				break
+			}
 			postman.processDeadLetter(msg)
+		}
+		if closed {
+			Trace.Println("Letter transfer stopped.")
+			break
 		}
 	}
 }

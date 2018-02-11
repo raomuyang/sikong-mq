@@ -51,6 +51,11 @@ func (exchange *DataExchange) CheckRecipientsAvailable() {
 			}
 			result := exchange.Heartbeat(connect)
 			Trace.Printf("Heartbeat: %s, ack: %v\n", address, result)
+
+			// close connection
+			err = connect.Close()
+			Trace.Printf("Heartbeat: close check connect, error: %v\n", err)
+
 			if !result {
 				recipient.Status = base.Lost
 				err = exchange.MsgCache.UpdateRecipient(*recipient)

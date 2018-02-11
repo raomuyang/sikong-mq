@@ -4,9 +4,26 @@ go:
     - 1.8
     - master
 install:
+    - export SOURCE=`pwd`
     - mkdir -p $GOPATH/src/github.com/sikong-mq/
     - cp skmq $GOPATH/src/github.com/sikong-mq/ -r
     - cp vendor/* $GOPATH/src/ -r
 script:
     - go test -v -race ./skmq/...
     - go vet ./...
+    - GOOS=windows GOARCH=amd64 go build  -o compile/mq-launcher-win.exe mq-launcher.go
+    - GOOS=linux GOARCH=amd64 go build  -o compile/mq-launcher-linux mq-launcher.go
+    - GOOS=darwin GOARCH=amd64 go build  -o compile/mq-launcher-mac mq-launcher.go
+
+before_deploy:
+  - git config --local user.name "raomuyang"
+  - git config --local user.email "raomengnan@gmail.com"
+  - git tag -d Latest; echo tag Latest deleted; git tag Latest
+
+deploy:
+    provider: releases
+    api_key: $GITHUB_TOKEN
+    skip-cleanup: true
+    file_glob: true
+    file: $SOURCE/compile/*
+    overwrite: true
