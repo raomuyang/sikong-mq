@@ -42,8 +42,16 @@ func (exchange *DataExchange) CheckRecipientsAvailable() {
 			Warn.Println(err)
 			continue
 		}
+		if recipients == nil {
+			Warn.Println("recipients is nil")
+			continue
+		}
 		for r := range recipients {
 			recipient := recipients[r]
+			if recipient == nil {
+				Warn.Println("recipient info is nil")
+				continue
+			}
 			address := fmt.Sprintf("%s:%s", recipient.Host, recipient.Port)
 			connect, err := net.DialTimeout("tcp", address, base.ConnectTimeOut)
 			if err != nil {
