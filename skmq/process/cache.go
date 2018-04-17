@@ -31,12 +31,12 @@ type Cache interface {
 	AddApplication(appId string) error
 	GetApps() []string
 
-	Locker() *RedisLock
+	Locker() *ResourceLock
 }
 
 type MessageCache struct {
 	pool              *redis.Pool
-	locker            *RedisLock
+	locker            *ResourceLock
 	messageRetryTimes int
 }
 
@@ -81,7 +81,7 @@ func InitDBConfig(config base.DBConfig, messageRetryTimes int) Cache {
 		return err
 	}
 
-	Locker := &RedisLock{Pool: pool}
+	Locker := &ResourceLock{Pool: pool}
 	MsgCache := &MessageCache{
 		pool:              pool,
 		locker:            Locker,
@@ -518,19 +518,19 @@ func (cache *MessageCache) GetApps() []string {
 	return list
 }
 
-func (cache *MessageCache) Locker() *RedisLock {
+func (cache *MessageCache) Locker() *ResourceLock {
 	return cache.locker
 }
 
-type RedisLock struct {
+type ResourceLock struct {
 	Pool       *redis.Pool
 	expireTime int
 	prefix     string
 }
 
-func (redisLock *RedisLock) TryLock(requestId string) (bool, error) {
-	dbConn := redisLock.Pool.Get()
-	rep, err := dbConn.Do("SET", redisLock.Prefix()+requestId, "Locked", "NX", "EX", redisLock.ExpireTime())
+func (resourceLock *ResourceLock) TryLock(requestId string) (bool, error) {
+	dbConn := resourceLock.Pool.Get()
+	rep, err := dbConn.Do("SET", resourceLock.Prefix()+requestId, "Locked", "NX", "EX", resourceLock.ExpireTime())
 	if err != nil {
 		return false, err
 	}
@@ -545,31 +545,31 @@ func (redisLock *RedisLock) TryLock(requestId string) (bool, error) {
 	return false, err
 }
 
-func (redisLock *RedisLock) Unlock(requestId string) error {
-	dbConn := redisLock.Pool.Get()
-	_, err := dbConn.Do("DEL", redisLock.Prefix()+requestId)
+func (resourceLock *ResourceLock) Unlock(requestId string) error {
+	dbConn := resourceLock.Pool.Get()
+	_, err := dbConn.Do("DEL", resourceLock.Prefix()+requestId)
 	return err
 }
 
-func (redisLock *RedisLock) ExpireTime() int {
-	if redisLock.expireTime == 0 {
+func (resourceLock *ResourceLock) ExpireTime() int {
+	if resourceLock.expireTime == 0 {
 		// default one day
 		return 60 * 60 * 24
 	}
-	return redisLock.expireTime
+	return resourceLock.expireTime
 }
 
-func (redisLock *RedisLock) SetExpireTime(expireTime int) {
-	redisLock.expireTime = expireTime
+func (resourceLock *ResourceLock) SetExpireTime(expireTime int) {
+	resourceLock.expireTime = expireTime
 }
 
-func (redisLock *RedisLock) Prefix() string {
-	if len(redisLock.prefix) == 0 {
+func (resourceLock *ResourceLock) Prefix() string {
+	if len(resourceLock.prefix) == 0 {
 		return "rds-lock-"
 	}
-	return redisLock.prefix
+	return resourceLock.prefix
 }
 
-func (redisLock *RedisLock) SetPrefix(prefix string) {
-	redisLock.prefix = prefix
+func (resourceLock *ResourceLock) SetPrefix(prefix string) {
+	resourceLock.prefix = prefix
 }
