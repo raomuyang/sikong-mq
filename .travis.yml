@@ -19,7 +19,7 @@ script:
 before_deploy:
   - git config --local user.name "raomuyang"
   - git config --local user.email "raomengnan@gmail.com"
-  - git tag -d Latest-download; echo tag Latest-download deleted; git tag Latest-download
+  - git tag -d LATEST-COMPILE; echo tag LATEST-COMPILE deleted; git tag LATEST-COMPILE; echo done
 
 deploy:
     provider: releases
