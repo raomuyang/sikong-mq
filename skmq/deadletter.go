@@ -1,7 +1,7 @@
 package skmq
 
 import (
-	"github.com/sikong-mq/skmq/base"
+	"github.com/raomuyang/sikong-mq/skmq/base"
 )
 
 type DeadLetterHandler interface {

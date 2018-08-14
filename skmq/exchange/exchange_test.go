@@ -2,7 +2,7 @@ package exchange
 
 import (
 	"fmt"
-	"github.com/sikong-mq/skmq/base"
+	"github.com/raomuyang/sikong-mq/skmq/base"
 	"net"
 	"strings"
 	"testing"

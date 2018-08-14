@@ -1,8 +1,8 @@
 package exchange
 
 import (
-	"github.com/sikong-mq/skmq/base"
-	"github.com/sikong-mq/skmq/process"
+	"github.com/raomuyang/sikong-mq/skmq/base"
+	"github.com/raomuyang/sikong-mq/skmq/process"
 )
 
 type MQConfig base.MQConfig

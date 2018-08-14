@@ -2,8 +2,8 @@ package process
 
 import (
 	"encoding/json"
-	"github.com/sikong-mq/skmq/base"
-	"github.com/sikong-mq/skmq/skerr"
+	"github.com/raomuyang/sikong-mq/skmq/base"
+	"github.com/raomuyang/sikong-mq/skmq/skerr"
 )
 
 const defaultChannelSize = 8

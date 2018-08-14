@@ -3,7 +3,7 @@ package process
 import (
 	"bytes"
 	"fmt"
-	"github.com/sikong-mq/skmq/base"
+	"github.com/raomuyang/sikong-mq/skmq/base"
 	"strings"
 	"testing"
 )

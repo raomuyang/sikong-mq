@@ -9,5 +9,5 @@ type Message struct {
 	Type    string `json:"type"`
 	Content []byte `json:"content"`
 	Status  string `json:"status"`
-	Retried int `json:"-"`
+	Retried int    `json:"-"`
 }

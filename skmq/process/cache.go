@@ -3,8 +3,8 @@ package process
 import (
 	"fmt"
 	"github.com/garyburd/redigo/redis"
-	"github.com/sikong-mq/skmq/base"
-	"github.com/sikong-mq/skmq/skerr"
+	"github.com/raomuyang/sikong-mq/skmq/base"
+	"github.com/raomuyang/sikong-mq/skmq/skerr"
 	"strconv"
 	"strings"
 	"time"

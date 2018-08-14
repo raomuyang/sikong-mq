@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sikong-mq/skmq/base"
-	"github.com/sikong-mq/skmq/exchange"
-	"github.com/sikong-mq/skmq/process"
-	"github.com/sikong-mq/skmq/ratelimiter"
-	"github.com/sikong-mq/skmq/skerr"
+	"github.com/raomuyang/sikong-mq/skmq/base"
+	"github.com/raomuyang/sikong-mq/skmq/exchange"
+	"github.com/raomuyang/sikong-mq/skmq/process"
+	"github.com/raomuyang/sikong-mq/skmq/ratelimiter"
+	"github.com/raomuyang/sikong-mq/skmq/skerr"
 )
 
 const (

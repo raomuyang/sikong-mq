@@ -1,18 +1,18 @@
 package lock
 
 import (
-	"github.com/garyburd/redigo/redis"
-	"errors"
-	"github.com/satori/go.uuid"
 	"crypto/md5"
+	"errors"
 	"fmt"
+	"github.com/garyburd/redigo/redis"
+	"github.com/satori/go.uuid"
 )
 
 const (
-	PREFIX  = "lock->"
-	script    = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end"
-
+	PREFIX = "lock->"
+	script = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end"
 )
+
 type RedisLock struct {
 	pool       *redis.Pool
 	expireTime int
@@ -30,14 +30,12 @@ func NewLock(name string, pool *redis.Pool, expireSeconds int) (*RedisLock, erro
 	md5sum.Write([]byte(valueContent))
 
 	lock := RedisLock{
-		key: key,
-		value: fmt.Sprintf("%x", md5sum.Sum(nil)),
-		pool: pool,
-		expireTime:expireSeconds}
+		key:        key,
+		value:      fmt.Sprintf("%x", md5sum.Sum(nil)),
+		pool:       pool,
+		expireTime: expireSeconds}
 	return &lock, nil
 }
-
-
 
 func (redisLock *RedisLock) TryLock() (bool, error) {
 	dbConn := redisLock.pool.Get()
@@ -74,4 +72,3 @@ func (redisLock *RedisLock) ExpireTime() int {
 func (redisLock *RedisLock) SetExpireTime(expireTime int) {
 	redisLock.expireTime = expireTime
 }
-

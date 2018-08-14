@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sikong-mq/skmq/base"
-	"github.com/sikong-mq/skmq/process"
+	"github.com/raomuyang/sikong-mq/skmq/base"
+	"github.com/raomuyang/sikong-mq/skmq/process"
 )
 
 type Postman struct {
