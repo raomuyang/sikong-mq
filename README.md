@@ -138,7 +138,7 @@ Heartbeat package: just return a `pong\r\n\r\n` package when it receives data th
 
 ## Launch
 
-> launch service by mq-launcher: mq-launcher `--conf` /path/to/conf.json `--dbconf` path/to/dbconf.json
+> launch service by sqmq launcher: sikong `--conf` /path/to/conf.json `--dbconf` path/to/dbconf.json
 
 The launcher must load mq config and db config while message queue launch
 
@@ -318,7 +318,7 @@ dbconf.json
 }
 ```
 
-mq-launcher启动时会默认读取同级目录下的conf.json和dbconf.json，可以通过`--conf`和`--dbconf`分别指定
+sikong启动时会默认读取同级目录下的conf.json和dbconf.json，可以通过`--conf`和`--dbconf`分别指定
 消息队列配置和redis配置
 
 
