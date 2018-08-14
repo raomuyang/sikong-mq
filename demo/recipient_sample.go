@@ -17,6 +17,8 @@ var recipient = base.RecipientInfo{
 }
 
 func main() {
+	ex := exchange.GetExchange(nil)
+
 	register()
 	// 启动消息接收服务
 	fmt.Println("Start recipient server.")
@@ -41,7 +43,7 @@ func main() {
 				fmt.Printf("Received: %v, content: %s \n", msg, msg.Content)
 				switch msg.Type {
 				case base.PING:
-					exchange.ReplyHeartbeat(c)
+					ex.ReplyHeartbeat(c)
 				case base.MPush:
 					respMsg := base.Message{MsgId: msg.MsgId, Type: base.MAckMsg}
 					process.SendMessage(c, process.EncodeMessage(respMsg))

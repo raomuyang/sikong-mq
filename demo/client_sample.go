@@ -10,6 +10,7 @@ import (
 )
 
 func main() {
+	ex := exchange.GetExchange(nil)
 	content := []byte("Content ")
 
 	testMsg1 := base.Message{
@@ -30,7 +31,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	pong := exchange.Heartbeat(conn)
+	pong := ex.Heartbeat(conn)
 	fmt.Println("Response:", pong)
 
 	go func() {
