@@ -16,7 +16,7 @@ var recipient = base.RecipientInfo{
 	Port:          "9001",
 }
 
-func main() {
+func RecipientDemo() {
 	ex := exchange.GetExchange(nil)
 
 	register()

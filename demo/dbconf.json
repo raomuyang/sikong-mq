@@ -1,0 +1,12 @@
+{
+  "address": "127.0.0.1:6379",
+  "password": "",
+  "max_idle": 0,
+  "max_active": 0,
+  "idle_timeout": 0,
+  "wait": false,
+  "db": 1,
+  "read_timeout": 0,
+  "write_timeout": 0,
+  "dial_connect_timeout": 0
+}

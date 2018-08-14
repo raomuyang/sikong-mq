@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func main() {
+func ClientDemo() {
 	ex := exchange.GetExchange(nil)
 	content := []byte("Content ")
 
