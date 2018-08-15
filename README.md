@@ -13,8 +13,24 @@ from channel to channel, a process by a handler and send to next handler (via ch
 The whole experience of a message includes encoding, decode, store, enqueue and wait to 
 send, etc.
 
-![message process](https://raw.githubusercontent.com/raomuyang/sikong-mq/master/message-process.png)
+![message process](https://raw.githubusercontent.com/raomuyang/sikong-mq/master/doc/message-process.png)
 
+## Installation
+
+* go get
+```shell
+go get -u -v github.com/raomuyang/sikong-mq
+```
+
+* compile
+
+```shell
+cd {project} && make compile
+```
+
+* download
+
+download compiled binary executable file from release
 
 ## Availability
 
