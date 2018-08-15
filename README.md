@@ -13,8 +13,24 @@ from channel to channel, a process by a handler and send to next handler (via ch
 The whole experience of a message includes encoding, decode, store, enqueue and wait to 
 send, etc.
 
-![message process](https://raw.githubusercontent.com/raomuyang/sikong-mq/master/message-process.png)
+![message process](https://raw.githubusercontent.com/raomuyang/sikong-mq/master/doc/message-process.png)
 
+## Installation
+
+* go get
+```shell
+go get -u -v github.com/raomuyang/sikong-mq
+```
+
+* compile
+
+```shell
+cd {project} && make compile
+```
+
+* download
+
+download compiled binary executable file from release
 
 ## Availability
 
@@ -35,7 +51,7 @@ The structure of message:
 SKMQ's service is based on the TCP protocol, which uses structured data to communication. 
 The rules for message encoding are similar to those of the HTTP service - Use  `\r\n`  to 
 separate a parameter, the  key and value of the parameter are separated by `=`,  
-use  `\r\n\r\n`  to separate a message, in this way to solve the TCP sticky problem.
+use  `\r\n\r\n`  to separate a message, in this way to solve the stream sticky problem.
 
 The list of request parameters for SKMQ is as follows:
 
@@ -196,7 +212,7 @@ SKMQ的设计基于构建在golang的channel和goroutine的优势上
 
 SKMQ的服务基于TCP协议，它使用结构化的数据进行通讯。消息编码的规则类似HTTP服务的响应头，使用两个换行符
 `\r\n`间隔一条参数，参数的key和value之间使用`=`间隔，使用四个换行`\r\n\r\n`符间隔一段消息，通过这种
-方式解决TCP的粘包问题。
+方式解决TCP数据流黏着的问题。
 
 SKMQ的请求参数列表如下：
 
